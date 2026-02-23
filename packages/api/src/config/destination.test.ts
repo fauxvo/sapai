@@ -24,7 +24,15 @@ describe('destination', () => {
     expect(dest.sapClient).toBe('100');
   });
 
-  it('has isTrustingAllCertificates set to true', async () => {
+  it('defaults isTrustingAllCertificates to false', async () => {
+    const { createSapDestination } = await import('./destination.js');
+    const dest = createSapDestination();
+
+    expect(dest.isTrustingAllCertificates).toBe(false);
+  });
+
+  it('respects SAP_TRUST_ALL_CERTS env var', async () => {
+    vi.stubEnv('SAP_TRUST_ALL_CERTS', 'true');
     const { createSapDestination } = await import('./destination.js');
     const dest = createSapDestination();
 

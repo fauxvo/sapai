@@ -8,7 +8,7 @@ export function createSapDestination(): HttpDestination {
     password: env.SAP_PASSWORD,
     authentication: 'BasicAuthentication',
     sapClient: env.SAP_CLIENT,
-    isTrustingAllCertificates: true,
+    isTrustingAllCertificates: env.SAP_TRUST_ALL_CERTS,
   };
 }
 

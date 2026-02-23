@@ -8,6 +8,10 @@ const envSchema = z.object({
   SAP_LANGUAGE: z.string().default('EN'),
   SAP_TIMEOUT_MS: z.coerce.number().positive().default(30000),
   SAP_MAX_RETRIES: z.coerce.number().nonnegative().default(3),
+  SAP_TRUST_ALL_CERTS: z
+    .enum(['true', 'false', '1', '0'])
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
   PORT: z.coerce.number().positive().default(3000),
 });
 

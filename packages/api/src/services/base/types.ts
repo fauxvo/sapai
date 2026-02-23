@@ -1,8 +1,6 @@
-export interface ServiceResult<T> {
-  success: boolean;
-  data?: T;
-  error?: SapBusinessError;
-}
+export type ServiceResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: SapBusinessError };
 
 export interface SapBusinessError {
   httpStatus: number;
