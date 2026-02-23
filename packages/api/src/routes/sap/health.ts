@@ -6,7 +6,8 @@ import { getSapDestination } from '../../config/destination.js';
 
 const SapHealthResponseSchema = z
   .object({
-    status: z.enum(['connected', 'error']),
+    status: z.enum(['connected', 'degraded', 'error']),
+    authenticated: z.boolean().nullable(),
     responseTimeMs: z.number().optional(),
     message: z.string().optional(),
   })
@@ -49,29 +50,51 @@ app.openapi(sapHealthRoute, async (c) => {
     return c.json(
       {
         status: 'connected' as const,
+        authenticated: true,
         responseTimeMs: Date.now() - start,
       },
       HttpStatusCodes.OK,
     );
   } catch (error: unknown) {
-    // Any HTTP response (even 4xx) means SAP is reachable
-    if (
-      error instanceof Error &&
-      typeof (error as unknown as Record<string, unknown>).response === 'object'
-    ) {
+    const elapsed = Date.now() - start;
+    const response = (error as Record<string, unknown>)?.response as
+      | Record<string, unknown>
+      | undefined;
+
+    // Got an HTTP response — SAP is reachable
+    if (response && typeof response.status === 'number') {
+      const httpStatus = response.status as number;
+
+      if (httpStatus === 401 || httpStatus === 403) {
+        return c.json(
+          {
+            status: 'degraded' as const,
+            authenticated: false,
+            responseTimeMs: elapsed,
+            message: `SAP returned ${httpStatus} — check SAP_USERNAME / SAP_PASSWORD credentials and user authorizations`,
+          },
+          HttpStatusCodes.OK,
+        );
+      }
+
+      // Other HTTP errors (404, 500, etc.) — reachable but auth status is
+      // ambiguous (a 500 could occur before authentication is evaluated)
       return c.json(
         {
           status: 'connected' as const,
-          responseTimeMs: Date.now() - start,
+          authenticated: null,
+          responseTimeMs: elapsed,
         },
         HttpStatusCodes.OK,
       );
     }
 
+    // No HTTP response at all — network-level failure
     return c.json(
       {
         status: 'error' as const,
-        responseTimeMs: Date.now() - start,
+        authenticated: false,
+        responseTimeMs: elapsed,
         message:
           error instanceof Error ? error.message : 'Unknown connection error',
       },

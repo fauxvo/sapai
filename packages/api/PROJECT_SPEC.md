@@ -767,19 +767,31 @@ Always extract the full error details array, not just the top-level message. The
 
 ## 10. Implementation Phases
 
-### Phase 1: Foundation (Current)
+### Phase 1: Foundation — COMPLETE (2026-02-23)
 
-- [ ] Generate typed OData clients for all priority 1-4 APIs
-- [ ] Implement `BaseService` with error handling and CSRF management
-- [ ] Implement connection/destination configuration
-- [ ] Set up project structure per Section 2.3
+- [x] Generate typed OData clients for PO + Sales Order APIs (32 + 73 files)
+- [x] Implement `BaseService` with `execute()` wrapper and SAP error parsing
+- [x] Implement connection/destination configuration (Zod-validated env, `HttpDestination` factory)
+- [x] Set up project structure per Section 2.3
+- [x] First Zod-OpenAPI route (`GET /sap/health`) with auto-generated OpenAPI 3.1 spec
+- [x] Scalar API docs at `/docs`
+- [x] Vitest test suite (13 tests: error-parser, environment, destination)
 
-### Phase 2: Purchase Orders (Reference Implementation)
+### Phase 1b: ESLint + Prettier — COMPLETE (2026-02-23)
+
+- [x] ESLint 9 flat config (`eslint.config.mjs`) with `typescript-eslint` + `eslint-config-prettier`
+- [x] Prettier config (single quotes, trailing commas, 80 char width)
+- [x] Lint scripts in all packages, format scripts at root
+- [x] Zero lint errors, all files formatted
+
+### Phase 2: Purchase Orders — Reference Implementation (Current)
 
 - [ ] Implement `PurchaseOrderService` with full CRUD
 - [ ] Deep insert for create (header + items + schedule lines)
 - [ ] Update operations at header, item, and schedule line levels
 - [ ] Deletion (soft delete via deletion indicator)
+- [ ] Zod-OpenAPI routes for all PO endpoints
+- [ ] Unit tests for service layer mapping logic
 - [ ] Integration tests against live S/4HANA instance
 - [ ] Document patterns for other services to follow
 
@@ -814,6 +826,9 @@ Always extract the full error details array, not just the top-level message. The
 | 2026-02 | Use SAP Cloud SDK client generation         | Full type safety, automatic ETag/CSRF handling, fluent query builders reduce boilerplate.                                       |
 | 2026-02 | Purchase Orders as reference implementation | Most complex hierarchy (5+ entity levels), covers deep insert patterns, representative of other APIs.                           |
 | 2026-02 | Separate input types from OData types       | Consumer-facing types should be clean and not leak SAP-specific naming conventions.                                             |
+| 2026-02 | Commit generated OData clients              | CI works without the generator. `src/generated/` is NOT gitignored.                                                             |
+| 2026-02 | ESLint 9 flat config at monorepo root       | Single source of truth for all packages. `eslint-config-prettier` disables conflicting rules.                                   |
+| 2026-02 | Hono `OpenAPIHono` + `@hono/zod-openapi`    | Auto-generated OpenAPI 3.1 spec from Zod route schemas. No hand-crafted spec object.                                            |
 
 ---
 
