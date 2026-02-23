@@ -1,0 +1,12 @@
+{
+  "service-specs/API_PURCHASEORDER_PROCESS_SRV.edmx": {
+    "packageName": "purchase-order-service",
+    "directoryName": "purchase-order-service",
+    "basePath": "/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV"
+  },
+  "service-specs/API_SALES_ORDER_SRV.edmx": {
+    "packageName": "sales-order-service",
+    "directoryName": "sales-order-service",
+    "basePath": "/sap/opu/odata/sap/API_SALES_ORDER_SRV"
+  }
+}

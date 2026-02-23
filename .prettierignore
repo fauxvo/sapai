@@ -1,0 +1,6 @@
+dist
+node_modules
+.turbo
+bun.lock
+packages/api/src/generated
+packages/dashboard/src/routeTree.gen.ts
