@@ -15,6 +15,8 @@ interface ModelPricing {
   outputPerMillion: number;
 }
 
+// Pricing in USD per million tokens — last updated 2025-05-14
+// Source: https://docs.anthropic.com/en/docs/about-claude/pricing
 const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-sonnet-4-5-20250514': { inputPerMillion: 3, outputPerMillion: 15 },
   'claude-opus-4-5-20250514': { inputPerMillion: 15, outputPerMillion: 75 },

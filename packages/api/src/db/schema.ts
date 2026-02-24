@@ -6,15 +6,20 @@ import {
   index,
 } from 'drizzle-orm/sqlite-core';
 
-export const conversations = sqliteTable('conversations', {
-  id: text('id').primaryKey(),
-  title: text('title'),
-  sourceType: text('source_type').notNull().default('chat'),
-  sourceId: text('source_id'),
-  status: text('status').notNull().default('active'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
+export const conversations = sqliteTable(
+  'conversations',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id'),
+    title: text('title'),
+    sourceType: text('source_type').notNull().default('chat'),
+    sourceId: text('source_id'),
+    status: text('status').notNull().default('active'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [index('conversations_user_id_idx').on(table.userId)],
+);
 
 export const messages = sqliteTable(
   'messages',

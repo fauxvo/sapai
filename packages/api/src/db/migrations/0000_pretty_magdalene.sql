@@ -31,6 +31,7 @@ CREATE TABLE `conversation_entities` (
 CREATE INDEX `conversation_entities_conversation_id_idx` ON `conversation_entities` (`conversation_id`);--> statement-breakpoint
 CREATE TABLE `conversations` (
 	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
 	`title` text,
 	`source_type` text DEFAULT 'chat' NOT NULL,
 	`source_id` text,
@@ -39,6 +40,7 @@ CREATE TABLE `conversations` (
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
+CREATE INDEX `conversations_user_id_idx` ON `conversations` (`user_id`);--> statement-breakpoint
 CREATE TABLE `execution_plans` (
 	`id` text PRIMARY KEY NOT NULL,
 	`conversation_id` text NOT NULL,

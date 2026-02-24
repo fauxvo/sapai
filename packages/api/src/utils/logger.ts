@@ -1,3 +1,5 @@
+import { env } from '../config/environment.js';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface Logger {
@@ -15,9 +17,9 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 function getConfiguredLevel(): LogLevel {
-  const envLevel = process.env.LOG_LEVEL as LogLevel | undefined;
+  const envLevel = env.LOG_LEVEL;
   if (envLevel && envLevel in LEVEL_PRIORITY) return envLevel;
-  return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+  return env.NODE_ENV === 'production' ? 'info' : 'debug';
 }
 
 function formatLine(

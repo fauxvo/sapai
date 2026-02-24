@@ -6,18 +6,17 @@ const clerkEnabled = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 /**
  * Returns a function that retrieves the current auth token.
  * When Clerk is not configured, returns a no-op that yields undefined.
+ *
+ * Note: clerkEnabled is a build-time constant (import.meta.env), so the
+ * conditional hook call order is stable across renders.
  */
 export function useAuthToken(): () => Promise<string | undefined> {
-  if (!clerkEnabled) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useCallback(async () => undefined, []);
-  }
+  // Both hooks are always called; the Clerk hook is a no-op wrapper when disabled
+  const clerkAuth = clerkEnabled ? useAuth() : null;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { getToken } = useAuth();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useCallback(async () => {
-    const token = await getToken();
+    if (!clerkAuth) return undefined;
+    const token = await clerkAuth.getToken();
     return token ?? undefined;
-  }, [getToken]);
+  }, [clerkAuth]);
 }

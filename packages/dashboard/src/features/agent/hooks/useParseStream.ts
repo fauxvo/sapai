@@ -67,6 +67,7 @@ export function useParseStream() {
         const decoder = new TextDecoder();
         let buffer = '';
         let finalResult: (AgentParseResponse & { executionResult?: unknown }) | null = null;
+        let currentEventType = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -78,8 +79,7 @@ export function useParseStream() {
 
           for (const line of lines) {
             if (line.startsWith('event: ')) {
-              const eventType = line.slice(7).trim();
-              // Next data: line will have the payload
+              currentEventType = line.slice(7).trim();
               continue;
             }
             if (line.startsWith('data: ')) {
@@ -87,9 +87,7 @@ export function useParseStream() {
               try {
                 const parsed = JSON.parse(data);
 
-                // Determine event type from the data structure
-                if (parsed.stage && parsed.status) {
-                  // Stage update
+                if (currentEventType === 'stage') {
                   setStages((prev) => {
                     if (parsed.status === 'started') {
                       return {
@@ -113,24 +111,23 @@ export function useParseStream() {
                     }
                     return prev;
                   });
-                } else if (parsed.type) {
-                  // Final result
-                  if (parsed.type === 'error') {
-                    setStages((prev) => ({
-                      ...prev,
-                      error: parsed.error?.message ?? 'Pipeline error',
-                    }));
-                  } else {
-                    finalResult = {
-                      conversationId: parsed.conversationId,
-                      messageId: parsed.messageId,
-                      parseResult: parsed.parseResult,
-                      plan: parsed.plan,
-                      executionResult: parsed.result,
-                      clarification: parsed.clarification,
-                    };
-                  }
+                } else if (currentEventType === 'result') {
+                  finalResult = {
+                    conversationId: parsed.conversationId,
+                    messageId: parsed.messageId,
+                    parseResult: parsed.parseResult,
+                    plan: parsed.plan,
+                    executionResult: parsed.result,
+                    clarification: parsed.clarification,
+                  };
+                } else if (currentEventType === 'error') {
+                  setStages((prev) => ({
+                    ...prev,
+                    error: parsed.message ?? 'Pipeline error',
+                  }));
                 }
+
+                currentEventType = '';
               } catch {
                 // Ignore parse errors for incomplete chunks
               }

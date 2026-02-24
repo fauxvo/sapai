@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import jsonContent from 'stoker/openapi/helpers/json-content';
 import { ConversationStore } from '../../services/agent/ConversationStore.js';
+import { getAuth } from '../../middleware/auth.js';
 
 const conversationStore = new ConversationStore();
 
@@ -109,8 +110,10 @@ export const conversationsApp = new OpenAPIHono();
 
 conversationsApp.openapi(listRoute, async (c) => {
   const { status, limit, offset } = c.req.valid('query');
+  const auth = getAuth(c);
   const convs = await conversationStore.listConversations({
     status,
+    userId: auth?.userId,
     limit,
     offset,
   });
@@ -120,7 +123,11 @@ conversationsApp.openapi(listRoute, async (c) => {
 
 conversationsApp.openapi(createConvRoute, async (c) => {
   const body = c.req.valid('json');
-  const conv = await conversationStore.createConversation(body);
+  const auth = getAuth(c);
+  const conv = await conversationStore.createConversation({
+    ...body,
+    userId: auth?.userId,
+  });
 
   return c.json(
     { success: true as const, data: conv },
@@ -130,7 +137,8 @@ conversationsApp.openapi(createConvRoute, async (c) => {
 
 conversationsApp.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
-  const conv = await conversationStore.getConversation(id);
+  const auth = getAuth(c);
+  const conv = await conversationStore.getConversation(id, auth?.userId);
 
   if (!conv) {
     return c.json(

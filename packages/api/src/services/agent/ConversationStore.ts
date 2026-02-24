@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { db as defaultDb, type DB } from '../../db/index.js';
 import {
   conversations,
@@ -24,6 +24,7 @@ export class ConversationStore {
     title?: string;
     sourceType?: SourceType;
     sourceId?: string;
+    userId?: string;
   }): Promise<AgentConversation> {
     const now = new Date().toISOString();
     const conversation: AgentConversation = {
@@ -38,6 +39,7 @@ export class ConversationStore {
 
     await this.db.insert(conversations).values({
       id: conversation.id,
+      userId: opts?.userId,
       title: conversation.title,
       sourceType: conversation.sourceType,
       sourceId: conversation.sourceId,
@@ -49,11 +51,17 @@ export class ConversationStore {
     return conversation;
   }
 
-  async getConversation(id: string): Promise<AgentConversation | undefined> {
+  async getConversation(
+    id: string,
+    userId?: string,
+  ): Promise<AgentConversation | undefined> {
+    const conditions = [eq(conversations.id, id)];
+    if (userId) conditions.push(eq(conversations.userId, userId));
+
     const rows = await this.db
       .select()
       .from(conversations)
-      .where(eq(conversations.id, id))
+      .where(and(...conditions))
       .limit(1);
 
     if (rows.length === 0) return undefined;
@@ -62,12 +70,14 @@ export class ConversationStore {
 
   async listConversations(opts?: {
     status?: ConversationStatus;
+    userId?: string;
     limit?: number;
     offset?: number;
   }): Promise<AgentConversation[]> {
-    const whereClause = opts?.status
-      ? eq(conversations.status, opts.status)
-      : undefined;
+    const conditions = [];
+    if (opts?.status) conditions.push(eq(conversations.status, opts.status));
+    if (opts?.userId) conditions.push(eq(conversations.userId, opts.userId));
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await this.db
       .select()

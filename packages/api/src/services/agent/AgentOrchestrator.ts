@@ -15,7 +15,7 @@ import type { PlanStore } from './PlanStore.js';
 import type { Executor } from './Executor.js';
 import type { AuditLogger } from './AuditLogger.js';
 import type { Logger } from '../../utils/logger.js';
-import { estimateCost } from '../../utils/cost-estimator.js';
+import { estimateCost, type TokenUsage } from '../../utils/cost-estimator.js';
 import { env } from '../../config/environment.js';
 
 // --- Typed errors ---
@@ -104,7 +104,7 @@ export class AgentOrchestrator {
     message: string;
     conversationId?: string;
     userId?: string;
-    onStageUpdate?: (update: StageUpdate) => void;
+    onStageUpdate?: (update: StageUpdate) => Promise<void> | void;
   }): Promise<OrchestratorResult> {
     const { message, userId, onStageUpdate } = params;
     const notify = onStageUpdate ?? (() => {});
@@ -128,6 +128,7 @@ export class AgentOrchestrator {
       } else {
         const conv = await this.deps.conversationStore.createConversation({
           title: message.slice(0, 100),
+          userId,
         });
         conversationId = conv.id;
       }
@@ -144,14 +145,14 @@ export class AgentOrchestrator {
         await this.deps.conversationStore.getConversationContext(conversationId);
 
       // --- Parse ---
-      notify({ stage: 'parsing', status: 'started' });
+      await notify({ stage: 'parsing', status: 'started' });
       const parseResult = await this.parseIntent(
         message,
         context ?? undefined,
         conversationId,
         userId,
       );
-      notify({ stage: 'parsing', status: 'completed', data: parseResult });
+      await notify({ stage: 'parsing', status: 'completed', data: parseResult });
 
       // No intents
       if (parseResult.intents.length === 0) {
@@ -173,12 +174,12 @@ export class AgentOrchestrator {
       }
 
       // --- Validate ---
-      notify({ stage: 'validating', status: 'started' });
+      await notify({ stage: 'validating', status: 'started' });
       const validationResults = this.deps.validator.validateAll(
         parseResult.intents,
       );
       const allMissing = validationResults.flatMap((v) => v.missingFields);
-      notify({ stage: 'validating', status: 'completed' });
+      await notify({ stage: 'validating', status: 'completed' });
 
       if (allMissing.length > 0) {
         const clarificationMsg = `I need more information: ${allMissing.join(', ')}`;
@@ -220,22 +221,22 @@ export class AgentOrchestrator {
       }
 
       // --- Resolve entities ---
-      notify({ stage: 'resolving', status: 'started' });
+      await notify({ stage: 'resolving', status: 'started' });
       const resolved = await this.resolveEntities(parseResult.intents);
-      notify({ stage: 'resolving', status: 'completed' });
+      await notify({ stage: 'resolving', status: 'completed' });
 
       // --- Build plan ---
-      notify({ stage: 'planning', status: 'started' });
+      await notify({ stage: 'planning', status: 'started' });
       const plan = this.deps.planBuilder.build(resolved);
       await this.deps.planStore.save(plan, conversationId, userMsg.id);
-      notify({ stage: 'planning', status: 'completed', data: plan });
+      await notify({ stage: 'planning', status: 'completed', data: plan });
 
       // Update active entities
       await this.updateEntities(conversationId, resolved, context);
 
       // --- Execute if read-only ---
       if (!plan.requiresApproval) {
-        notify({ stage: 'executing', status: 'started' });
+        await notify({ stage: 'executing', status: 'started' });
         const executionResult = await this.deps.executor.execute(
           plan,
           conversationId,
@@ -259,7 +260,7 @@ export class AgentOrchestrator {
           resultSummary,
           { plan, executionResult },
         );
-        notify({ stage: 'executing', status: 'completed' });
+        await notify({ stage: 'executing', status: 'completed' });
 
         return {
           type: 'executed',
@@ -299,6 +300,7 @@ export class AgentOrchestrator {
         error: error.message,
         phase: error.phase,
       });
+      await notify({ stage: 'parsing', status: 'error', data: error.message });
       return {
         type: 'error',
         conversationId: params.conversationId,
@@ -321,7 +323,7 @@ export class AgentOrchestrator {
     const parseDuration = Date.now() - parseStart;
 
     // Calculate cost if token usage available
-    const tokenUsage = (parseResult as ParseResult & { tokenUsage?: { inputTokens: number; outputTokens: number; model: string } }).tokenUsage;
+    const tokenUsage = (parseResult as ParseResult & { tokenUsage?: TokenUsage }).tokenUsage;
     let costData: { inputTokens?: number; outputTokens?: number; estimatedCost?: number } = {};
     if (tokenUsage) {
       const cost = estimateCost(tokenUsage);

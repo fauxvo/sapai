@@ -3,7 +3,7 @@ import { db as defaultDb, type DB } from '../../db/index.js';
 import { auditLog } from '../../db/schema.js';
 import type { AuditLogEntry, AuditPhase } from '@sapai/shared';
 
-const MAX_FIELD_BYTES = 10240;
+const MAX_FIELD_CHARS = 10240;
 
 export class AuditLogger {
   constructor(private readonly db: DB = defaultDb) {}
@@ -29,10 +29,10 @@ export class AuditLogger {
       planId: entry.planId,
       phase: entry.phase,
       input: entry.input != null
-        ? this.truncateField(entry.input, MAX_FIELD_BYTES)
+        ? this.truncateField(entry.input, MAX_FIELD_CHARS)
         : null,
       output: entry.output != null
-        ? this.truncateField(entry.output, MAX_FIELD_BYTES)
+        ? this.truncateField(entry.output, MAX_FIELD_CHARS)
         : null,
       userId: entry.userId,
       durationMs: entry.durationMs,
@@ -101,9 +101,9 @@ export class AuditLogger {
     }));
   }
 
-  private truncateField(value: unknown, maxBytes: number): string {
+  private truncateField(value: unknown, maxChars: number): string {
     const serialized = JSON.stringify(value);
-    if (serialized.length <= maxBytes) return serialized;
-    return serialized.slice(0, maxBytes - 15) + '...[truncated]"';
+    if (serialized.length <= maxChars) return serialized;
+    return serialized.slice(0, maxChars - 15) + '...[truncated]"';
   }
 }

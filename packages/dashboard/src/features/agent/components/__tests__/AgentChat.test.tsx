@@ -267,4 +267,46 @@ describe('AgentChat', () => {
     expect(textarea).toBeInTheDocument();
     expect(textarea.tagName.toLowerCase()).toBe('textarea');
   });
+
+  it('falls back to regular POST when SSE stream fails', async () => {
+    const mockStream = vi.fn().mockRejectedValue(new Error('SSE failed'));
+    mockUseParseStream.mockReturnValue({
+      stream: mockStream,
+      cancel: vi.fn(),
+      isStreaming: false,
+      stages: { currentStage: null, completedStages: [], error: null },
+    });
+
+    const mockMutateAsync = vi.fn().mockResolvedValue({
+      conversationId: 'conv-1',
+      messageId: 'msg-1',
+      parseResult: { intents: [] },
+    });
+    mockUseParse.mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      isPending: false,
+      error: null,
+    } as unknown as ReturnType<typeof useParse>);
+
+    const user = userEvent.setup();
+    render(<AgentChat />);
+
+    const textarea = screen.getByPlaceholderText(
+      'Ask about purchase orders...',
+    );
+    await user.type(textarea, 'Show me PO 123');
+    await user.click(screen.getByText('Send'));
+
+    // SSE was attempted first
+    expect(mockStream).toHaveBeenCalledWith({
+      message: 'Show me PO 123',
+      conversationId: undefined,
+    });
+
+    // Regular POST was used as fallback
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      message: 'Show me PO 123',
+      conversationId: undefined,
+    });
+  });
 });
