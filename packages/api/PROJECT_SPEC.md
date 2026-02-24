@@ -68,29 +68,60 @@ Build an enterprise-grade, type-safe SAP S/4HANA integration service in TypeScri
 ```
 src/
 ├── generated/                    # Auto-generated OData clients (DO NOT EDIT)
-│   ├── purchase-order-service/
-│   ├── business-partner-service/
-│   ├── sales-order-service/
-│   └── product-service/
+│   ├── purchase-order-service/   # API_PURCHASEORDER_PROCESS_SRV (32 files)
+│   ├── sales-order-service/      # API_SALES_ORDER_SRV (73 files)
+│   └── batch-request.ts
 ├── services/                     # Business logic service layer
 │   ├── base/
 │   │   ├── BaseService.ts        # Shared connection, error handling, CSRF
 │   │   └── types.ts              # Shared result/error types
 │   ├── purchase-order/
 │   │   ├── PurchaseOrderService.ts
-│   │   ├── types.ts              # PO-specific input/output types
+│   │   ├── PurchaseOrderService.test.ts
+│   │   ├── types.ts              # PO header + item input/output types
 │   │   └── index.ts
-│   ├── business-partner/
-│   ├── sales-order/
-│   └── product/
+│   ├── purchase-order-notes/
+│   │   ├── PurchaseOrderNoteService.ts
+│   │   ├── PurchaseOrderNoteService.test.ts
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── purchase-order-schedule-lines/
+│   │   ├── PurchaseOrderScheduleLineService.ts
+│   │   ├── PurchaseOrderScheduleLineService.test.ts
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── purchase-order-account-assignments/
+│   │   ├── PurchaseOrderAccountAssignmentService.ts
+│   │   ├── PurchaseOrderAccountAssignmentService.test.ts
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── purchase-order-pricing-elements/
+│   │   ├── PurchaseOrderPricingElementService.ts
+│   │   ├── PurchaseOrderPricingElementService.test.ts
+│   │   ├── types.ts
+│   │   └── index.ts
+│   ├── business-partner/         # Phase 3 (planned)
+│   ├── sales-order/              # Phase 4 (planned)
+│   └── product/                  # Phase 4 (planned)
+├── routes/sap/
+│   ├── health.ts                 # GET /sap/health (SAP connectivity check)
+│   ├── purchase-orders.ts        # PO header + item routes (11 routes)
+│   ├── po-notes.ts               # PO + item note routes (10 routes)
+│   ├── po-schedule-lines.ts      # Schedule line + component routes (9 routes)
+│   ├── po-account-assignments.ts # Account assignment routes (5 routes)
+│   └── po-pricing-elements.ts    # Pricing element routes (4 routes)
+├── schemas/
+│   └── error.ts                  # sapErrorResponses, mapSapStatus, sanitize
 ├── config/
-│   ├── destination.ts            # SAP destination configuration
-│   └── environment.ts            # Environment variable validation
+│   ├── destination.ts            # SAP HttpDestination factory
+│   ├── destination.test.ts
+│   ├── environment.ts            # Zod-validated env vars
+│   └── environment.test.ts
 ├── utils/
 │   ├── error-parser.ts           # SAP OData error message extraction
-│   ├── batch.ts                  # Batch/changeset utilities
-│   └── pagination.ts             # Server-driven pagination helpers
-└── index.ts                      # Public API exports
+│   └── error-parser.test.ts
+├── app.ts                        # OpenAPIHono app, route mounting, OpenAPI spec
+└── index.ts                      # Server entry point
 ```
 
 ---
@@ -784,18 +815,39 @@ Always extract the full error details array, not just the top-level message. The
 - [x] Lint scripts in all packages, format scripts at root
 - [x] Zero lint errors, all files formatted
 
-### Phase 2: Purchase Orders — Reference Implementation (Current)
+### Phase 2: Purchase Orders — COMPLETE (2026-02-23)
 
-- [ ] Implement `PurchaseOrderService` with full CRUD
-- [ ] Deep insert for create (header + items + schedule lines)
-- [ ] Update operations at header, item, and schedule line levels
-- [ ] Deletion (soft delete via deletion indicator)
-- [ ] Zod-OpenAPI routes for all PO endpoints
-- [ ] Unit tests for service layer mapping logic
+- [x] `PurchaseOrderService` with full CRUD (header + items)
+- [x] Deep insert for create (header + items + schedule lines + account assignments)
+- [x] Update operations at header and item levels (read-before-update pattern for ETag)
+- [x] Deletion (soft delete via deletion indicator)
+- [x] 28 Zod-OpenAPI routes covering the full PO entity hierarchy
+- [x] 63 unit tests across 8 test files (services + config)
 - [ ] Integration tests against live S/4HANA instance
-- [ ] Document patterns for other services to follow
+- [x] Patterns documented for other services to follow
 
-### Phase 3: Business Partners
+#### Phase 2 Sub-Entity Services
+
+5 dedicated service classes, each extending `BaseService`:
+
+| Service | Entity | Routes | Operations |
+|---------|--------|--------|------------|
+| `PurchaseOrderService` | Header + Items | 11 | Full CRUD + deep insert + filters |
+| `PurchaseOrderNoteService` | PO Notes + Item Notes | 10 | Full CRUD (header-level and item-level) |
+| `PurchaseOrderScheduleLineService` | Schedule Lines + Subcontracting Components | 9 | Full CRUD for lines; read/update/delete for components |
+| `PurchaseOrderAccountAssignmentService` | Account Assignments | 5 | Full CRUD |
+| `PurchaseOrderPricingElementService` | Pricing Elements | 4 | Read/update/delete (no create — system-managed) |
+
+#### Phase 2 Architecture Decisions
+
+- **Separate service class per entity group** — keeps each class focused (~200-300 lines) instead of one 1000+ line monolith
+- **Separate route file per entity group** — each exports an `OpenAPIHono` app mounted in `app.ts` under `/sap`
+- **`sapErrorResponses` shared helper** — all routes spread `...sapErrorResponses` for consistent error status codes (400/401/403/404/409/500), solving Hono's strict route typing
+- **`SapErrorStatus` narrow type** — `mapSapStatus()` returns `400 | 401 | 403 | 404 | 409 | 500` (literal numbers for exact type narrowing)
+- **Zod schemas as single source of truth** — base schemas in `types.ts`, route files use `.extend()` for API-boundary validation (ISO date regex, time format)
+- **Health endpoint enhanced** — `degraded` state for auth failures (401/403), `authenticated` boolean, env-driven TLS trust via `SAP_TRUST_ALL_CERTS`
+
+### Phase 3: Business Partners (Next)
 
 - [ ] Implement `BusinessPartnerService`
 - [ ] Deep insert for BP + address + customer/supplier extensions
@@ -829,6 +881,13 @@ Always extract the full error details array, not just the top-level message. The
 | 2026-02 | Commit generated OData clients              | CI works without the generator. `src/generated/` is NOT gitignored.                                                             |
 | 2026-02 | ESLint 9 flat config at monorepo root       | Single source of truth for all packages. `eslint-config-prettier` disables conflicting rules.                                   |
 | 2026-02 | Hono `OpenAPIHono` + `@hono/zod-openapi`    | Auto-generated OpenAPI 3.1 spec from Zod route schemas. No hand-crafted spec object.                                            |
+| 2026-02 | Separate service class per entity group      | One class per SAP entity group (~200-300 lines each) instead of a monolith. All extend `BaseService`.                            |
+| 2026-02 | Separate route file per entity group         | Each exports an `OpenAPIHono` app mounted in `app.ts`. Keeps route files under 300 lines.                                       |
+| 2026-02 | Shared `sapErrorResponses` helper            | All routes spread consistent error status codes, solving Hono's strict route typing. `mapSapStatus` returns narrow literal union. |
+| 2026-02 | Zod schemas single source of truth           | Base schemas in `types.ts`; route files `.extend()` with API-boundary validation (ISO dates, time format).                       |
+| 2026-02 | No notes in deep insert                      | Notes are typically added post-creation. Deep insert covers items + schedule lines + account assignments only.                    |
+| 2026-02 | Pricing elements: no create                  | Pricing conditions are system-managed via SAP's pricing engine. API exposes read/update/delete only.                             |
+| 2026-02 | Subcontracting components: no create         | Components are system-managed via BOM explosion. API exposes read/update/delete only.                                            |
 
 ---
 

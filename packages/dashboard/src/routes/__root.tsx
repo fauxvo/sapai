@@ -1,10 +1,36 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 
 export const Route = createRootRoute({
   component: () => (
-    <div>
-      <h1>SAP Integration Dashboard</h1>
-      <Outlet />
+    <div className="min-h-screen bg-gray-50">
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="flex h-14 items-center gap-6">
+            <span className="text-lg font-semibold text-gray-900">SAPAI</span>
+            <Link
+              to="/"
+              className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/agent"
+              className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
+            >
+              Agent
+            </Link>
+            <Link
+              to="/agent/history"
+              className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
+            >
+              Audit Log
+            </Link>
+          </div>
+        </div>
+      </nav>
+      <main>
+        <Outlet />
+      </main>
     </div>
   ),
 });

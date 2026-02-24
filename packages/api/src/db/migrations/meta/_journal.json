@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1771890462797,
+      "tag": "0000_opposite_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771951401373,
+      "tag": "0001_friendly_dust",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 // Shared type definitions
+export * from './agent.js';
 
 /** Standard API response envelope */
 export interface ApiResponse<T> {
