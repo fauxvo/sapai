@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3a83c473-5ccf-45af-8c07-5635815d0c0b",
+  "id": "5a45b24a-049c-46e5-bd67-161f67fa9a77",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "audit_log": {
@@ -63,6 +63,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "estimated_cost": {
+          "name": "estimated_cost",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -71,7 +92,29 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "audit_log_conversation_id_idx": {
+          "name": "audit_log_conversation_id_idx",
+          "columns": [
+            "conversation_id"
+          ],
+          "isUnique": false
+        },
+        "audit_log_phase_idx": {
+          "name": "audit_log_phase_idx",
+          "columns": [
+            "phase"
+          ],
+          "isUnique": false
+        },
+        "audit_log_created_at_idx": {
+          "name": "audit_log_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "audit_log_conversation_id_conversations_id_fk": {
           "name": "audit_log_conversation_id_conversations_id_fk",
@@ -150,7 +193,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "conversation_entities_conversation_id_idx": {
+          "name": "conversation_entities_conversation_id_idx",
+          "columns": [
+            "conversation_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "conversation_entities_conversation_id_conversations_id_fk": {
           "name": "conversation_entities_conversation_id_conversations_id_fk",
@@ -178,6 +229,13 @@
           "type": "text",
           "primaryKey": true,
           "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "title": {
@@ -225,7 +283,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "conversations_user_id_idx": {
+          "name": "conversations_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -377,7 +443,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "messages_conversation_id_idx": {
+          "name": "messages_conversation_id_idx",
+          "columns": [
+            "conversation_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "messages_conversation_id_conversations_id_fk": {
           "name": "messages_conversation_id_conversations_id_fk",

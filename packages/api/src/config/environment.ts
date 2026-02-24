@@ -14,6 +14,12 @@ const envSchema = z.object({
     .transform((v) => v === 'true' || v === '1'),
   PORT: z.coerce.number().positive().default(3000),
 
+  // Environment
+  NODE_ENV: z.string().default('development'),
+  LOG_LEVEL: z
+    .enum(['debug', 'info', 'warn', 'error'])
+    .optional(),
+
   // Database
   DB_PATH: z.string().default('./data/sapai.db'),
 
@@ -22,8 +28,14 @@ const envSchema = z.object({
   ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5-20250514'),
   AGENT_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
 
-  // Agent API authentication
-  AGENT_API_KEY: z.string().min(1).optional(),
+  // Clerk authentication (auth disabled when not set)
+  CLERK_SECRET_KEY: z.string().min(1).optional(),
+  CLERK_PUBLISHABLE_KEY: z.string().min(1).optional(),
+  CLERK_JWT_KEY: z.string().optional(),
+
+  // Rate limiting
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(60000),
+  RATE_LIMIT_MAX: z.coerce.number().positive().default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;

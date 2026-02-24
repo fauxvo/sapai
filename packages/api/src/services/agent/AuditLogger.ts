@@ -3,6 +3,8 @@ import { db as defaultDb, type DB } from '../../db/index.js';
 import { auditLog } from '../../db/schema.js';
 import type { AuditLogEntry, AuditPhase } from '@sapai/shared';
 
+const MAX_FIELD_CHARS = 10240;
+
 export class AuditLogger {
   constructor(private readonly db: DB = defaultDb) {}
 
@@ -14,6 +16,9 @@ export class AuditLogger {
     output: unknown;
     userId?: string;
     durationMs: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    estimatedCost?: number;
   }): Promise<AuditLogEntry> {
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
@@ -23,10 +28,17 @@ export class AuditLogger {
       conversationId: entry.conversationId,
       planId: entry.planId,
       phase: entry.phase,
-      input: entry.input != null ? JSON.stringify(entry.input) : null,
-      output: entry.output != null ? JSON.stringify(entry.output) : null,
+      input: entry.input != null
+        ? this.truncateField(entry.input, MAX_FIELD_CHARS)
+        : null,
+      output: entry.output != null
+        ? this.truncateField(entry.output, MAX_FIELD_CHARS)
+        : null,
       userId: entry.userId,
       durationMs: entry.durationMs,
+      inputTokens: entry.inputTokens,
+      outputTokens: entry.outputTokens,
+      estimatedCost: entry.estimatedCost,
       createdAt: now,
     });
 
@@ -87,5 +99,11 @@ export class AuditLogger {
       userId: r.userId ?? undefined,
       durationMs: r.durationMs ?? 0,
     }));
+  }
+
+  private truncateField(value: unknown, maxChars: number): string {
+    const serialized = JSON.stringify(value);
+    if (serialized.length <= maxChars) return serialized;
+    return serialized.slice(0, maxChars - 15) + '...[truncated]"';
   }
 }

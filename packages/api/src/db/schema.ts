@@ -1,14 +1,25 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+} from 'drizzle-orm/sqlite-core';
 
-export const conversations = sqliteTable('conversations', {
-  id: text('id').primaryKey(),
-  title: text('title'),
-  sourceType: text('source_type').notNull().default('chat'),
-  sourceId: text('source_id'),
-  status: text('status').notNull().default('active'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
+export const conversations = sqliteTable(
+  'conversations',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id'),
+    title: text('title'),
+    sourceType: text('source_type').notNull().default('chat'),
+    sourceId: text('source_id'),
+    status: text('status').notNull().default('active'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [index('conversations_user_id_idx').on(table.userId)],
+);
 
 export const messages = sqliteTable(
   'messages',
@@ -50,6 +61,9 @@ export const auditLog = sqliteTable(
     output: text('output'),
     userId: text('user_id'),
     durationMs: integer('duration_ms'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    estimatedCost: real('estimated_cost'),
     createdAt: text('created_at').notNull(),
   },
   (table) => [

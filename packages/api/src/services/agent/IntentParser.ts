@@ -4,6 +4,7 @@ import type {
   ParsedIntent,
   AgentConversationContext,
 } from '@sapai/shared';
+import type { TokenUsage } from '../../utils/cost-estimator.js';
 import { env } from '../../config/environment.js';
 import { intentRegistry } from './intents/registry.js';
 import {
@@ -21,7 +22,7 @@ export class IntentParser {
   async parse(
     message: string,
     context?: AgentConversationContext,
-  ): Promise<ParseResult> {
+  ): Promise<ParseResult & { tokenUsage?: TokenUsage }> {
     if (!env.ANTHROPIC_API_KEY) {
       throw new Error(
         'ANTHROPIC_API_KEY is not configured. Cannot parse intents.',
@@ -64,13 +65,26 @@ export class IntentParser {
       messages,
     });
 
+    // Extract token usage
+    const tokenUsage: TokenUsage | undefined = response.usage
+      ? {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+          model: env.ANTHROPIC_MODEL,
+        }
+      : undefined;
+
     // Extract tool use result
     const toolUse = response.content.find(
       (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
     );
 
     if (!toolUse) {
-      return { intents: [], unhandledContent: 'Failed to parse intent' };
+      return {
+        intents: [],
+        unhandledContent: 'Failed to parse intent',
+        tokenUsage,
+      };
     }
 
     const result = toolUse.input as {
@@ -81,6 +95,7 @@ export class IntentParser {
     return {
       intents: result.intents ?? [],
       unhandledContent: result.unhandledContent,
+      tokenUsage,
     };
   }
 }

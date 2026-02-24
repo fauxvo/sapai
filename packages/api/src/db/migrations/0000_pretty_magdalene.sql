@@ -7,11 +7,17 @@ CREATE TABLE `audit_log` (
 	`output` text,
 	`user_id` text,
 	`duration_ms` integer,
+	`input_tokens` integer,
+	`output_tokens` integer,
+	`estimated_cost` real,
 	`created_at` text NOT NULL,
 	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`plan_id`) REFERENCES `execution_plans`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE INDEX `audit_log_conversation_id_idx` ON `audit_log` (`conversation_id`);--> statement-breakpoint
+CREATE INDEX `audit_log_phase_idx` ON `audit_log` (`phase`);--> statement-breakpoint
+CREATE INDEX `audit_log_created_at_idx` ON `audit_log` (`created_at`);--> statement-breakpoint
 CREATE TABLE `conversation_entities` (
 	`id` text PRIMARY KEY NOT NULL,
 	`conversation_id` text NOT NULL,
@@ -22,8 +28,10 @@ CREATE TABLE `conversation_entities` (
 	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE INDEX `conversation_entities_conversation_id_idx` ON `conversation_entities` (`conversation_id`);--> statement-breakpoint
 CREATE TABLE `conversations` (
 	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
 	`title` text,
 	`source_type` text DEFAULT 'chat' NOT NULL,
 	`source_id` text,
@@ -32,6 +40,7 @@ CREATE TABLE `conversations` (
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
+CREATE INDEX `conversations_user_id_idx` ON `conversations` (`user_id`);--> statement-breakpoint
 CREATE TABLE `execution_plans` (
 	`id` text PRIMARY KEY NOT NULL,
 	`conversation_id` text NOT NULL,
@@ -55,3 +64,5 @@ CREATE TABLE `messages` (
 	`created_at` text NOT NULL,
 	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action
 );
+--> statement-breakpoint
+CREATE INDEX `messages_conversation_id_idx` ON `messages` (`conversation_id`);
