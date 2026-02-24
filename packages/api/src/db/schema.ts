@@ -27,7 +27,7 @@ export const messages = sqliteTable(
     id: text('id').primaryKey(),
     conversationId: text('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     role: text('role').notNull(),
     content: text('content').notNull(),
     metadata: text('metadata'),
@@ -40,8 +40,8 @@ export const executionPlans = sqliteTable('execution_plans', {
   id: text('id').primaryKey(),
   conversationId: text('conversation_id')
     .notNull()
-    .references(() => conversations.id),
-  messageId: text('message_id').references(() => messages.id),
+    .references(() => conversations.id, { onDelete: 'cascade' }),
+  messageId: text('message_id').references(() => messages.id, { onDelete: 'cascade' }),
   status: text('status').notNull(),
   plan: text('plan').notNull(),
   result: text('result'),
@@ -54,8 +54,8 @@ export const auditLog = sqliteTable(
   'audit_log',
   {
     id: text('id').primaryKey(),
-    conversationId: text('conversation_id').references(() => conversations.id),
-    planId: text('plan_id').references(() => executionPlans.id),
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }),
+    planId: text('plan_id').references(() => executionPlans.id, { onDelete: 'cascade' }),
     phase: text('phase').notNull(),
     input: text('input'),
     output: text('output'),
@@ -79,7 +79,7 @@ export const conversationEntities = sqliteTable(
     id: text('id').primaryKey(),
     conversationId: text('conversation_id')
       .notNull()
-      .references(() => conversations.id),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     entityValue: text('entity_value').notNull(),
     entityLabel: text('entity_label'),

@@ -13,6 +13,9 @@ import { agentApp } from './routes/agent/index.js';
 import { clerkAuth } from './middleware/auth.js';
 import { anthropicGuard } from './middleware/anthropic-guard.js';
 import { agentRateLimiter } from './middleware/rate-limiter.js';
+import { createLogger } from './utils/logger.js';
+
+const log = createLogger('app');
 
 const app = new OpenAPIHono();
 
@@ -23,16 +26,16 @@ app.use('*', cors());
 
 // Clerk JWT auth — skipped when CLERK_SECRET_KEY is not configured (local dev mode)
 app.use('/sap/*', clerkAuth);
-app.use('/agent/*', clerkAuth);
+app.use('/api/agent/*', clerkAuth);
 
 // Anthropic API key guard — 503 when ANTHROPIC_API_KEY is not set
-app.use('/agent/parse', anthropicGuard);
-app.use('/agent/parse/stream', anthropicGuard);
-app.use('/agent/execute', anthropicGuard);
+app.use('/api/agent/parse', anthropicGuard);
+app.use('/api/agent/parse/stream', anthropicGuard);
+app.use('/api/agent/execute', anthropicGuard);
 
 // Rate limiting for AI endpoints
-app.use('/agent/parse', agentRateLimiter);
-app.use('/agent/parse/stream', agentRateLimiter);
+app.use('/api/agent/parse', agentRateLimiter);
+app.use('/api/agent/parse/stream', agentRateLimiter);
 
 // Infrastructure health check (for load balancers / probes)
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -46,7 +49,7 @@ app.route('/sap', poAccountAssignmentsApp);
 app.route('/sap', poPricingElementsApp);
 
 // Agent routes
-app.route('/agent', agentApp);
+app.route('/api/agent', agentApp);
 
 // Auto-generated OpenAPI 3.1 spec
 app.doc31('/openapi.json', {
@@ -106,6 +109,13 @@ app.notFound((c) => {
 
 // Global error handler
 app.onError((err, c) => {
+  log.error('Unhandled error', {
+    method: c.req.method,
+    path: c.req.path,
+    error: err.message,
+    stack: err.stack,
+    name: err.name,
+  });
   return c.json(
     { message: err.message },
     HttpStatusCodes.INTERNAL_SERVER_ERROR,

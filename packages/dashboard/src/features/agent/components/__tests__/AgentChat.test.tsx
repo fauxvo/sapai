@@ -8,6 +8,8 @@ vi.mock('../../hooks/useAgent', () => ({
   useConversations: vi.fn(),
   useConversation: vi.fn(),
   useCreateConversation: vi.fn(),
+  useUpdateConversation: vi.fn(),
+  useDeleteConversation: vi.fn(),
   useParse: vi.fn(),
   useExecute: vi.fn(),
 }));
@@ -30,6 +32,8 @@ import {
   useConversations,
   useConversation,
   useCreateConversation,
+  useUpdateConversation,
+  useDeleteConversation,
   useParse,
   useExecute,
 } from '../../hooks/useAgent';
@@ -39,6 +43,8 @@ import { useParseStream } from '../../hooks/useParseStream';
 const mockUseConversations = vi.mocked(useConversations);
 const mockUseConversation = vi.mocked(useConversation);
 const mockUseCreateConversation = vi.mocked(useCreateConversation);
+const mockUseUpdateConversation = vi.mocked(useUpdateConversation);
+const mockUseDeleteConversation = vi.mocked(useDeleteConversation);
 const mockUseParse = vi.mocked(useParse);
 const mockUseExecute = vi.mocked(useExecute);
 const mockUseParseStream = vi.mocked(useParseStream);
@@ -62,6 +68,18 @@ function setupDefaultMocks() {
     error: null,
   } as unknown as ReturnType<typeof useCreateConversation>);
 
+  mockUseUpdateConversation.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+  } as unknown as ReturnType<typeof useUpdateConversation>);
+
+  mockUseDeleteConversation.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+  } as unknown as ReturnType<typeof useDeleteConversation>);
+
   mockUseParse.mockReturnValue({
     mutateAsync: vi.fn(),
     isPending: false,
@@ -81,6 +99,8 @@ function setupDefaultMocks() {
     stages: {
       currentStage: null,
       completedStages: [],
+      stageDetails: [],
+      progressItems: {},
       error: null,
     },
   });
@@ -151,6 +171,8 @@ describe('AgentChat', () => {
       stages: {
         currentStage: 'parsing',
         completedStages: [],
+        stageDetails: [],
+        progressItems: {},
         error: null,
       },
     });
@@ -231,6 +253,8 @@ describe('AgentChat', () => {
       stages: {
         currentStage: 'validating',
         completedStages: ['parsing'],
+        stageDetails: [],
+        progressItems: {},
         error: null,
       },
     });
@@ -241,11 +265,54 @@ describe('AgentChat', () => {
     expect(screen.getByText('Validating')).toBeInTheDocument();
   });
 
-  it('does not show pipeline progress when not streaming', () => {
+  it('does not show pipeline progress when not streaming and no stage data', () => {
     render(<AgentChat />);
     expect(
       screen.queryByText('Pipeline Progress'),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows pipeline after streaming ends when completed stages exist', () => {
+    mockUseParseStream.mockReturnValue({
+      stream: vi.fn(),
+      cancel: vi.fn(),
+      isStreaming: false,
+      stages: {
+        currentStage: null,
+        completedStages: ['parsing', 'validating', 'resolving', 'planning', 'executing'],
+        stageDetails: [],
+        progressItems: {},
+        error: null,
+      },
+    });
+
+    render(<AgentChat />);
+    expect(screen.getByText('Pipeline Progress')).toBeInTheDocument();
+  });
+
+  it('shows pipeline after streaming ends when there is an error', () => {
+    mockUseParseStream.mockReturnValue({
+      stream: vi.fn(),
+      cancel: vi.fn(),
+      isStreaming: false,
+      stages: {
+        currentStage: 'resolving',
+        completedStages: ['parsing', 'validating'],
+        stageDetails: [
+          { stage: 'resolving', startedDetail: 'Checking SAP connectivity...' },
+        ],
+        progressItems: {},
+        error: 'SAP system unreachable: connection refused',
+      },
+    });
+
+    render(<AgentChat />);
+    expect(screen.getByText('Pipeline Progress')).toBeInTheDocument();
+    // Error appears inline under the stage and as summary at the bottom
+    const errorTexts = screen.getAllByText(
+      'SAP system unreachable: connection refused',
+    );
+    expect(errorTexts.length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows "Sending..." text when busy', () => {
@@ -268,13 +335,81 @@ describe('AgentChat', () => {
     expect(textarea.tagName.toLowerCase()).toBe('textarea');
   });
 
+  it('shows retry button on last user message when not busy', () => {
+    mockUseConversation.mockReturnValue({
+      data: {
+        conversationId: 'conv-1',
+        messages: [
+          {
+            id: 'msg-1',
+            conversationId: 'conv-1',
+            role: 'user' as const,
+            content: 'First message',
+            createdAt: '2024-01-15T10:00:00Z',
+          },
+          {
+            id: 'msg-2',
+            conversationId: 'conv-1',
+            role: 'agent' as const,
+            content: 'Agent reply',
+            createdAt: '2024-01-15T10:00:05Z',
+          },
+          {
+            id: 'msg-3',
+            conversationId: 'conv-1',
+            role: 'user' as const,
+            content: 'Second message',
+            createdAt: '2024-01-15T10:01:00Z',
+          },
+        ],
+        activeEntities: [],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useConversation>);
+
+    render(<AgentChat />);
+    // Only one retry button should exist (for the last user message)
+    const retryButtons = screen.getAllByText('Retry');
+    expect(retryButtons).toHaveLength(1);
+  });
+
+  it('does not show retry button while busy', () => {
+    mockUseParse.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: true,
+      error: null,
+    } as unknown as ReturnType<typeof useParse>);
+
+    mockUseConversation.mockReturnValue({
+      data: {
+        conversationId: 'conv-1',
+        messages: [
+          {
+            id: 'msg-1',
+            conversationId: 'conv-1',
+            role: 'user' as const,
+            content: 'Waiting message',
+            createdAt: '2024-01-15T10:00:00Z',
+          },
+        ],
+        activeEntities: [],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useConversation>);
+
+    render(<AgentChat />);
+    expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+  });
+
   it('falls back to regular POST when SSE stream fails', async () => {
     const mockStream = vi.fn().mockRejectedValue(new Error('SSE failed'));
     mockUseParseStream.mockReturnValue({
       stream: mockStream,
       cancel: vi.fn(),
       isStreaming: false,
-      stages: { currentStage: null, completedStages: [], error: null },
+      stages: { currentStage: null, completedStages: [], stageDetails: [], progressItems: {}, error: null },
     });
 
     const mockMutateAsync = vi.fn().mockResolvedValue({

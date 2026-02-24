@@ -2,17 +2,20 @@ import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AgentParseResponse } from '@sapai/shared';
 import { useAuthToken } from './useAuthToken';
+import type {
+  PipelineStage,
+  CostEstimate,
+  StageDetail,
+  ProgressItem,
+} from '../types';
 
-type PipelineStage =
-  | 'parsing'
-  | 'validating'
-  | 'resolving'
-  | 'planning'
-  | 'executing';
+export type { CostEstimate, ProgressItem };
 
 interface StageState {
   currentStage: PipelineStage | null;
   completedStages: PipelineStage[];
+  stageDetails: StageDetail[];
+  progressItems: Record<string, ProgressItem[]>;
   error: string | null;
 }
 
@@ -22,6 +25,8 @@ export function useParseStream() {
   const [stages, setStages] = useState<StageState>({
     currentStage: null,
     completedStages: [],
+    stageDetails: [],
+    progressItems: {},
     error: null,
   });
   const [isStreaming, setIsStreaming] = useState(false);
@@ -38,7 +43,7 @@ export function useParseStream() {
       | null
     > => {
       // Reset state
-      setStages({ currentStage: null, completedStages: [], error: null });
+      setStages({ currentStage: null, completedStages: [], stageDetails: [], progressItems: {}, error: null });
       setIsStreaming(true);
 
       abortRef.current?.abort();
@@ -52,7 +57,7 @@ export function useParseStream() {
         };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const response = await fetch(`${API_BASE}/agent/parse/stream`, {
+        const response = await fetch(`${API_BASE}/api/agent/parse/stream`, {
           method: 'POST',
           headers,
           body: JSON.stringify(params),
@@ -89,14 +94,24 @@ export function useParseStream() {
 
                 if (currentEventType === 'stage') {
                   setStages((prev) => {
+                    const detail = parsed.data?.detail as string | undefined;
                     if (parsed.status === 'started') {
+                      const existingDetail = prev.stageDetails.find(d => d.stage === parsed.stage);
+                      const updatedDetails = existingDetail
+                        ? prev.stageDetails.map(d => d.stage === parsed.stage ? { ...d, startedDetail: detail } : d)
+                        : [...prev.stageDetails, { stage: parsed.stage as PipelineStage, startedDetail: detail }];
                       return {
                         ...prev,
                         currentStage: parsed.stage,
+                        stageDetails: updatedDetails,
                         error: null,
                       };
                     }
                     if (parsed.status === 'completed') {
+                      const cost = parsed.data?.costEstimate as CostEstimate | undefined;
+                      const updatedDetails = prev.stageDetails.map(d =>
+                        d.stage === parsed.stage ? { ...d, completedDetail: detail, ...(cost ? { costEstimate: cost } : {}) } : d,
+                      );
                       return {
                         ...prev,
                         currentStage: null,
@@ -104,7 +119,36 @@ export function useParseStream() {
                           ...prev.completedStages,
                           parsed.stage,
                         ],
+                        stageDetails: updatedDetails,
                       };
+                    }
+                    if (parsed.status === 'progress') {
+                      const d = parsed.data as {
+                        item: string;
+                        detail: string;
+                        index: number;
+                        total: number;
+                        status: 'running' | 'done' | 'failed';
+                      } | undefined;
+                      if (d) {
+                        const stage = parsed.stage as string;
+                        const existing = prev.progressItems[stage] ?? [];
+                        const idx = existing.findIndex((p) => p.item === d.item);
+                        const updated: ProgressItem = {
+                          item: d.item,
+                          detail: d.detail,
+                          status: d.status,
+                        };
+                        const newItems =
+                          idx >= 0
+                            ? existing.map((p, i) => (i === idx ? updated : p))
+                            : [...existing, updated];
+                        return {
+                          ...prev,
+                          progressItems: { ...prev.progressItems, [stage]: newItems },
+                        };
+                      }
+                      return prev;
                     }
                     if (parsed.status === 'error') {
                       return { ...prev, error: parsed.data ?? 'Stage error' };

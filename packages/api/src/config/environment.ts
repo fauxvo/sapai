@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+// Treats empty strings as undefined — useful for env vars set to '' in
+// docker-compose or .env templates where "unset" is expressed as empty.
+const optionalNonEmpty = z
+  .string()
+  .min(1)
+  .optional()
+  .or(z.literal('').transform(() => undefined));
+
 const envSchema = z.object({
   SAP_BASE_URL: z.string().min(1),
   SAP_CLIENT: z.string().min(1),
@@ -25,13 +33,14 @@ const envSchema = z.object({
 
   // Agent / Claude API
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5-20250514'),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5-20250929'),
   AGENT_CONFIDENCE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.6),
 
   // Clerk authentication (auth disabled when not set)
-  CLERK_SECRET_KEY: z.string().min(1).optional(),
-  CLERK_PUBLISHABLE_KEY: z.string().min(1).optional(),
-  CLERK_JWT_KEY: z.string().optional(),
+  // Empty strings are treated as unset (common in docker-compose / .env templates)
+  CLERK_SECRET_KEY: optionalNonEmpty,
+  CLERK_PUBLISHABLE_KEY: optionalNonEmpty,
+  CLERK_JWT_KEY: optionalNonEmpty,
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(60000),

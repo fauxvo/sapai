@@ -4,9 +4,8 @@ import {
   conversations,
   messages,
   conversationEntities,
-  executionPlans,
-  auditLog,
 } from '../../db/schema.js';
+import { createLogger } from '../../utils/logger.js';
 import type {
   AgentConversation,
   AgentMessage,
@@ -17,6 +16,8 @@ import type {
   MessageRole,
 } from '@sapai/shared';
 
+const log = createLogger('ConversationStore');
+
 export class ConversationStore {
   constructor(private readonly db: DB = defaultDb) {}
 
@@ -26,6 +27,7 @@ export class ConversationStore {
     sourceId?: string;
     userId?: string;
   }): Promise<AgentConversation> {
+    log.debug('createConversation called', { opts });
     const now = new Date().toISOString();
     const conversation: AgentConversation = {
       id: crypto.randomUUID(),
@@ -37,16 +39,27 @@ export class ConversationStore {
       updatedAt: now,
     };
 
-    await this.db.insert(conversations).values({
-      id: conversation.id,
-      userId: opts?.userId,
-      title: conversation.title,
-      sourceType: conversation.sourceType,
-      sourceId: conversation.sourceId,
-      status: conversation.status,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-    });
+    log.debug('Inserting conversation into DB', { id: conversation.id });
+    try {
+      await this.db.insert(conversations).values({
+        id: conversation.id,
+        userId: opts?.userId,
+        title: conversation.title,
+        sourceType: conversation.sourceType,
+        sourceId: conversation.sourceId,
+        status: conversation.status,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+      });
+      log.info('Conversation created', { id: conversation.id });
+    } catch (err) {
+      log.error('Failed to insert conversation', {
+        id: conversation.id,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      throw err;
+    }
 
     return conversation;
   }
@@ -55,6 +68,7 @@ export class ConversationStore {
     id: string,
     userId?: string,
   ): Promise<AgentConversation | undefined> {
+    log.debug('getConversation', { id, userId });
     const conditions = [eq(conversations.id, id)];
     if (userId) conditions.push(eq(conversations.userId, userId));
 
@@ -64,6 +78,7 @@ export class ConversationStore {
       .where(and(...conditions))
       .limit(1);
 
+    log.debug('getConversation result', { id, found: rows.length > 0 });
     if (rows.length === 0) return undefined;
     return this.mapConversation(rows[0]);
   }
@@ -74,6 +89,7 @@ export class ConversationStore {
     limit?: number;
     offset?: number;
   }): Promise<AgentConversation[]> {
+    log.debug('listConversations', { opts });
     const conditions = [];
     if (opts?.status) conditions.push(eq(conversations.status, opts.status));
     if (opts?.userId) conditions.push(eq(conversations.userId, opts.userId));
@@ -87,6 +103,7 @@ export class ConversationStore {
       .limit(opts?.limit ?? 50)
       .offset(opts?.offset ?? 0);
 
+    log.debug('listConversations result', { count: rows.length });
     return rows.map((r) => this.mapConversation(r));
   }
 
@@ -199,25 +216,33 @@ export class ConversationStore {
     });
   }
 
-  async deleteConversation(id: string): Promise<void> {
-    this.db.transaction((tx) => {
-      // Delete in order respecting foreign keys
-      tx.delete(auditLog)
-        .where(eq(auditLog.conversationId, id))
-        .run();
-      tx.delete(executionPlans)
-        .where(eq(executionPlans.conversationId, id))
-        .run();
-      tx.delete(conversationEntities)
-        .where(eq(conversationEntities.conversationId, id))
-        .run();
-      tx.delete(messages)
-        .where(eq(messages.conversationId, id))
-        .run();
-      tx.delete(conversations)
-        .where(eq(conversations.id, id))
-        .run();
-    });
+  async updateConversation(
+    id: string,
+    updates: { title?: string; status?: ConversationStatus },
+    userId?: string,
+  ): Promise<AgentConversation | undefined> {
+    const existing = await this.getConversation(id, userId);
+    if (!existing) return undefined;
+
+    const now = new Date().toISOString();
+    await this.db
+      .update(conversations)
+      .set({ ...updates, updatedAt: now })
+      .where(eq(conversations.id, id));
+
+    return { ...existing, ...updates, updatedAt: now };
+  }
+
+  async deleteConversation(id: string, userId?: string): Promise<void> {
+    log.info('deleteConversation (cascade)', { id, userId });
+    // Foreign keys have ON DELETE CASCADE — deleting the conversation
+    // automatically removes messages, plans, entities, and audit logs.
+    const conditions = [eq(conversations.id, id)];
+    if (userId) conditions.push(eq(conversations.userId, userId));
+    await this.db
+      .delete(conversations)
+      .where(and(...conditions));
+    log.info('deleteConversation complete', { id });
   }
 
   private mapConversation(

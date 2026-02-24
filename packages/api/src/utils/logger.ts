@@ -1,5 +1,3 @@
-import { env } from '../config/environment.js';
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface Logger {
@@ -16,10 +14,20 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 };
 
+// Resolve level lazily from process.env to avoid importing env config at module load
+// (which would fail in test environments that don't set SAP_* vars).
+// Note: cached after first access — runtime changes to LOG_LEVEL won't take effect.
+let _resolvedLevel: LogLevel | null = null;
+
 function getConfiguredLevel(): LogLevel {
-  const envLevel = env.LOG_LEVEL;
-  if (envLevel && envLevel in LEVEL_PRIORITY) return envLevel;
-  return env.NODE_ENV === 'production' ? 'info' : 'debug';
+  if (_resolvedLevel) return _resolvedLevel;
+  const envLevel = process.env.LOG_LEVEL as LogLevel | undefined;
+  if (envLevel && envLevel in LEVEL_PRIORITY) {
+    _resolvedLevel = envLevel;
+    return _resolvedLevel;
+  }
+  _resolvedLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
+  return _resolvedLevel;
 }
 
 function formatLine(
@@ -35,11 +43,8 @@ function formatLine(
 }
 
 export function createLogger(module: string): Logger {
-  const minLevel = getConfiguredLevel();
-  const minPriority = LEVEL_PRIORITY[minLevel];
-
   function shouldLog(level: LogLevel): boolean {
-    return LEVEL_PRIORITY[level] >= minPriority;
+    return LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[getConfiguredLevel()];
   }
 
   return {
