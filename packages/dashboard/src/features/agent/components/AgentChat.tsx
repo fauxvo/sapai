@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearch, useNavigate } from '@tanstack/react-router';
 import type { AgentMessage, ExecutionPlan } from '@sapai/shared';
 import {
   useConversation,
@@ -7,13 +8,21 @@ import {
   useParse,
   useExecute,
 } from '../hooks/useAgent';
+import { useParseStream } from '../hooks/useParseStream';
 import { MessageBubble } from './MessageBubble';
 import { ExecutionPlanCard } from './ExecutionPlanCard';
 import { ClarificationPrompt } from './ClarificationPrompt';
 import { ConversationList } from './ConversationList';
+import { PipelineProgress } from './PipelineProgress';
+import { RetryBar } from './RetryBar';
+
+const MAX_RETRIES = Number(import.meta.env.VITE_MAX_RETRIES ?? '3');
 
 export function AgentChat() {
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  // URL-based conversation restore
+  const { conversationId: urlConvId } = useSearch({ from: '/agent/' });
+  const navigate = useNavigate();
+
   const [input, setInput] = useState('');
   const [pendingPlan, setPendingPlan] = useState<ExecutionPlan | null>(null);
   const [clarification, setClarification] = useState<{
@@ -23,15 +32,32 @@ export function AgentChat() {
   const [optimisticMessages, setOptimisticMessages] = useState<AgentMessage[]>(
     [],
   );
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(
+    null,
+  );
+  const [retryCount, setRetryCount] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const activeConvId = urlConvId ?? null;
 
   const { data: conversations = [] } = useConversations();
   const { data: conversationDetail } = useConversation(activeConvId);
   const createConversation = useCreateConversation();
   const parse = useParse();
   const execute = useExecute(activeConvId);
+  const { stream, isStreaming, stages } = useParseStream();
+
+  const setActiveConvId = useCallback(
+    (id: string | null) => {
+      navigate({
+        to: '/agent',
+        search: { conversationId: id ?? undefined },
+      });
+    },
+    [navigate],
+  );
 
   const serverMessages = conversationDetail?.messages ?? [];
   const displayMessages = [
@@ -40,6 +66,8 @@ export function AgentChat() {
       (om) => !serverMessages.some((sm) => sm.id === om.id),
     ),
   ];
+
+  const isBusy = parse.isPending || isStreaming;
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -53,51 +81,93 @@ export function AgentChat() {
     }
   }, [serverMessages.length]);
 
-  const handleSend = useCallback(async () => {
-    const message = input.trim();
-    if (!message || parse.isPending) return;
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim() || isBusy) return;
 
-    setInput('');
-    setClarification(null);
-    setPendingPlan(null);
+      setInput('');
+      setClarification(null);
+      setPendingPlan(null);
+      setLastFailedMessage(null);
 
-    // Add optimistic user message
-    const tempId = `temp_${Date.now()}`;
-    setOptimisticMessages((prev) => [
-      ...prev,
-      {
-        id: tempId,
-        conversationId: activeConvId ?? '',
-        role: 'user' as const,
-        content: message,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+      // Add optimistic user message
+      const tempId = `temp_${Date.now()}`;
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          conversationId: activeConvId ?? '',
+          role: 'user' as const,
+          content: message,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
 
-    try {
-      const result = await parse.mutateAsync({
-        message,
-        conversationId: activeConvId ?? undefined,
-      });
+      try {
+        // Try SSE streaming first
+        const result = await stream({
+          message,
+          conversationId: activeConvId ?? undefined,
+        });
 
-      // If new conversation was created, select it
-      if (!activeConvId && result.conversationId) {
-        setActiveConvId(result.conversationId);
+        if (result) {
+          if (!activeConvId && result.conversationId) {
+            setActiveConvId(result.conversationId);
+          }
+          if (result.clarification) {
+            setClarification(result.clarification);
+          }
+          if (result.plan?.requiresApproval) {
+            setPendingPlan(result.plan);
+          }
+          setRetryCount(0);
+          return;
+        }
+      } catch {
+        // SSE failed — fall back to regular POST
       }
 
-      // Handle clarification
-      if (result.clarification) {
-        setClarification(result.clarification);
-      }
+      try {
+        const result = await parse.mutateAsync({
+          message,
+          conversationId: activeConvId ?? undefined,
+        });
 
-      // Handle plan needing approval
-      if (result.plan?.requiresApproval) {
-        setPendingPlan(result.plan);
+        if (!activeConvId && result.conversationId) {
+          setActiveConvId(result.conversationId);
+        }
+        if (result.clarification) {
+          setClarification(result.clarification);
+        }
+        if (result.plan?.requiresApproval) {
+          setPendingPlan(result.plan);
+        }
+        setRetryCount(0);
+      } catch {
+        setLastFailedMessage(message);
+        setRetryCount((prev) => prev + 1);
       }
-    } catch {
-      // Error is visible via parse.error
+    },
+    [activeConvId, isBusy, parse, stream, setActiveConvId],
+  );
+
+  const handleSend = useCallback(() => {
+    sendMessage(input.trim());
+  }, [input, sendMessage]);
+
+  const handleRetry = useCallback(() => {
+    if (lastFailedMessage) {
+      sendMessage(lastFailedMessage);
     }
-  }, [input, activeConvId, parse]);
+  }, [lastFailedMessage, sendMessage]);
+
+  const handleEditRetry = useCallback(() => {
+    if (lastFailedMessage) {
+      setInput(lastFailedMessage);
+      setLastFailedMessage(null);
+      inputRef.current?.focus();
+    }
+  }, [lastFailedMessage]);
 
   const handleApprove = useCallback(
     async (planId: string) => {
@@ -130,10 +200,12 @@ export function AgentChat() {
       setPendingPlan(null);
       setClarification(null);
       setOptimisticMessages([]);
+      setLastFailedMessage(null);
+      setRetryCount(0);
     } catch {
       // Error visible via createConversation.error
     }
-  }, [createConversation]);
+  }, [createConversation, setActiveConvId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -142,7 +214,10 @@ export function AgentChat() {
     }
   };
 
-  const error = parse.error ?? execute.error ?? createConversation.error;
+  const error =
+    !lastFailedMessage
+      ? (parse.error ?? execute.error ?? createConversation.error)
+      : null;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -179,6 +254,17 @@ export function AgentChat() {
             </div>
           )}
 
+          {/* Pipeline progress during streaming */}
+          {isStreaming && (
+            <div className="mx-auto mt-3 max-w-3xl">
+              <PipelineProgress
+                currentStage={stages.currentStage}
+                completedStages={stages.completedStages}
+                error={stages.error}
+              />
+            </div>
+          )}
+
           {/* Clarification prompt */}
           {clarification && (
             <div className="mx-auto mt-3 max-w-3xl">
@@ -201,7 +287,22 @@ export function AgentChat() {
             </div>
           )}
 
-          {/* Error */}
+          {/* Retry bar on failure */}
+          {lastFailedMessage && (
+            <div className="mx-auto mt-3 max-w-3xl">
+              <RetryBar
+                errorMessage={
+                  parse.error?.message ?? 'Message failed to send'
+                }
+                retryCount={retryCount}
+                maxRetries={MAX_RETRIES}
+                onRetry={handleRetry}
+                onEditRetry={handleEditRetry}
+              />
+            </div>
+          )}
+
+          {/* Error (non-retry) */}
           {error && (
             <div className="mx-auto mt-3 max-w-3xl rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {error.message}
@@ -225,10 +326,10 @@ export function AgentChat() {
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || parse.isPending}
+              disabled={!input.trim() || isBusy}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {parse.isPending ? 'Sending...' : 'Send'}
+              {isBusy ? 'Sending...' : 'Send'}
             </button>
           </div>
         </div>

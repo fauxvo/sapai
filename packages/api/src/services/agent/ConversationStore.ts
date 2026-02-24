@@ -4,6 +4,8 @@ import {
   conversations,
   messages,
   conversationEntities,
+  executionPlans,
+  auditLog,
 } from '../../db/schema.js';
 import type {
   AgentConversation,
@@ -184,6 +186,27 @@ export class ConversationStore {
           )
           .run();
       }
+    });
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    this.db.transaction((tx) => {
+      // Delete in order respecting foreign keys
+      tx.delete(auditLog)
+        .where(eq(auditLog.conversationId, id))
+        .run();
+      tx.delete(executionPlans)
+        .where(eq(executionPlans.conversationId, id))
+        .run();
+      tx.delete(conversationEntities)
+        .where(eq(conversationEntities.conversationId, id))
+        .run();
+      tx.delete(messages)
+        .where(eq(messages.conversationId, id))
+        .run();
+      tx.delete(conversations)
+        .where(eq(conversations.id, id))
+        .run();
     });
   }
 

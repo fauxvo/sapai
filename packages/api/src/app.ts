@@ -1,10 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { bearerAuth } from 'hono/bearer-auth';
 import { apiReference } from '@scalar/hono-api-reference';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
-import { env } from './config/environment.js';
 import { sapHealthApp } from './routes/sap/health.js';
 import { purchaseOrderApp } from './routes/sap/purchase-orders.js';
 import { poNotesApp } from './routes/sap/po-notes.js';
@@ -12,6 +10,9 @@ import { poScheduleLinesApp } from './routes/sap/po-schedule-lines.js';
 import { poAccountAssignmentsApp } from './routes/sap/po-account-assignments.js';
 import { poPricingElementsApp } from './routes/sap/po-pricing-elements.js';
 import { agentApp } from './routes/agent/index.js';
+import { clerkAuth } from './middleware/auth.js';
+import { anthropicGuard } from './middleware/anthropic-guard.js';
+import { agentRateLimiter } from './middleware/rate-limiter.js';
 
 const app = new OpenAPIHono();
 
@@ -20,14 +21,18 @@ app.use('*', logger());
 // TODO: Restrict CORS origins via env var (e.g. CORS_ORIGIN) — currently allows all origins.
 app.use('*', cors());
 
-// Agent API key guard — when AGENT_API_KEY is set, all /agent/* routes require Bearer auth.
-// When unset (local dev), agent routes are open.
-app.use('/agent/*', async (c, next) => {
-  const key = env.AGENT_API_KEY;
-  if (!key) return next();
-  const middleware = bearerAuth({ token: key });
-  return middleware(c, next);
-});
+// Clerk JWT auth — skipped when CLERK_SECRET_KEY is not configured (local dev mode)
+app.use('/sap/*', clerkAuth);
+app.use('/agent/*', clerkAuth);
+
+// Anthropic API key guard — 503 when ANTHROPIC_API_KEY is not set
+app.use('/agent/parse', anthropicGuard);
+app.use('/agent/parse/stream', anthropicGuard);
+app.use('/agent/execute', anthropicGuard);
+
+// Rate limiting for AI endpoints
+app.use('/agent/parse', agentRateLimiter);
+app.use('/agent/parse/stream', agentRateLimiter);
 
 // Infrastructure health check (for load balancers / probes)
 app.get('/health', (c) => c.json({ status: 'ok' }));

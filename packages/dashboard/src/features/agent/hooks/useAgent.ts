@@ -7,26 +7,41 @@ import {
   createConversation,
 } from '../api';
 import type { AgentParseRequest, AgentExecuteRequest } from '@sapai/shared';
+import { useAuthToken } from './useAuthToken';
 
 export function useConversations() {
+  const getToken = useAuthToken();
   return useQuery({
     queryKey: ['conversations'],
-    queryFn: () => listConversations({ status: 'active', limit: 50 }),
+    queryFn: async () => {
+      const token = await getToken();
+      return listConversations({ status: 'active', limit: 50 }, token);
+    },
   });
 }
 
 export function useConversation(id: string | null) {
+  const getToken = useAuthToken();
   return useQuery({
     queryKey: ['conversation', id],
-    queryFn: () => getConversation(id!),
+    queryFn: async () => {
+      const token = await getToken();
+      return getConversation(id!, token);
+    },
     enabled: !!id,
   });
 }
 
 export function useCreateConversation() {
   const queryClient = useQueryClient();
+  const getToken = useAuthToken();
   return useMutation({
-    mutationFn: createConversation,
+    mutationFn: async (
+      body?: Parameters<typeof createConversation>[0],
+    ) => {
+      const token = await getToken();
+      return createConversation(body, token);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
@@ -35,8 +50,12 @@ export function useCreateConversation() {
 
 export function useParse() {
   const queryClient = useQueryClient();
+  const getToken = useAuthToken();
   return useMutation({
-    mutationFn: (body: AgentParseRequest) => parseMessage(body),
+    mutationFn: async (body: AgentParseRequest) => {
+      const token = await getToken();
+      return parseMessage(body, token);
+    },
     onSuccess: (_data, variables) => {
       if (variables.conversationId) {
         queryClient.invalidateQueries({
@@ -50,8 +69,12 @@ export function useParse() {
 
 export function useExecute(conversationId?: string | null) {
   const queryClient = useQueryClient();
+  const getToken = useAuthToken();
   return useMutation({
-    mutationFn: (body: AgentExecuteRequest) => executePlan(body),
+    mutationFn: async (body: AgentExecuteRequest) => {
+      const token = await getToken();
+      return executePlan(body, token);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       if (conversationId) {

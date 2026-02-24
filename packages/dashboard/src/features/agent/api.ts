@@ -9,68 +9,54 @@ import type {
   AuditLogEntry,
   ExecutionPlan,
 } from '@sapai/shared';
-
-// --- Generic fetch helper ---
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
-
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  const json = await res.json();
-  if (!res.ok || json.success === false) {
-    throw new Error(json.error ?? `Request failed: ${res.status}`);
-  }
-  return json.data as T;
-}
+import { apiRequest } from '../../lib/api-client';
 
 // --- Agent endpoints ---
 
-export async function parseMessage(body: AgentParseRequest): Promise<
-  AgentParseResponse & {
-    executionResult?: unknown;
-  }
-> {
-  return request('/agent/parse', {
+export async function parseMessage(
+  body: AgentParseRequest,
+  token?: string,
+): Promise<AgentParseResponse & { executionResult?: unknown }> {
+  return apiRequest('/agent/parse', {
     method: 'POST',
     body: JSON.stringify(body),
+    token,
   });
 }
 
 export async function executePlan(
   body: AgentExecuteRequest,
+  token?: string,
 ): Promise<AgentExecuteResponse> {
-  return request('/agent/execute', {
+  return apiRequest('/agent/execute', {
     method: 'POST',
     body: JSON.stringify(body),
+    token,
   });
 }
 
 // --- Conversation endpoints ---
 
-export async function listConversations(params?: {
-  status?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<AgentConversation[]> {
+export async function listConversations(
+  params?: { status?: string; limit?: number; offset?: number },
+  token?: string,
+): Promise<AgentConversation[]> {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.offset) searchParams.set('offset', String(params.offset));
   const qs = searchParams.toString();
-  return request(`/agent/conversations${qs ? `?${qs}` : ''}`);
+  return apiRequest(`/agent/conversations${qs ? `?${qs}` : ''}`, { token });
 }
 
-export async function createConversation(body?: {
-  title?: string;
-  sourceType?: string;
-  sourceId?: string;
-}): Promise<AgentConversation> {
-  return request('/agent/conversations', {
+export async function createConversation(
+  body?: { title?: string; sourceType?: string; sourceId?: string },
+  token?: string,
+): Promise<AgentConversation> {
+  return apiRequest('/agent/conversations', {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
+    token,
   });
 }
 
@@ -80,18 +66,24 @@ export interface ConversationDetail {
   activeEntities: ActiveEntity[];
 }
 
-export async function getConversation(id: string): Promise<ConversationDetail> {
-  return request(`/agent/conversations/${id}`);
+export async function getConversation(
+  id: string,
+  token?: string,
+): Promise<ConversationDetail> {
+  return apiRequest(`/agent/conversations/${id}`, { token });
 }
 
 // --- Audit ---
 
-export async function getAuditHistory(params?: {
-  conversationId?: string;
-  phase?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<AuditLogEntry[]> {
+export async function getAuditHistory(
+  params?: {
+    conversationId?: string;
+    phase?: string;
+    limit?: number;
+    offset?: number;
+  },
+  token?: string,
+): Promise<AuditLogEntry[]> {
   const searchParams = new URLSearchParams();
   if (params?.conversationId)
     searchParams.set('conversationId', params.conversationId);
@@ -99,7 +91,7 @@ export async function getAuditHistory(params?: {
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.offset) searchParams.set('offset', String(params.offset));
   const qs = searchParams.toString();
-  return request(`/agent/history${qs ? `?${qs}` : ''}`);
+  return apiRequest(`/agent/history${qs ? `?${qs}` : ''}`, { token });
 }
 
 // Re-export types for convenience

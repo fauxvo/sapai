@@ -15,6 +15,7 @@ export const Route = createRootRoute({
             </Link>
             <Link
               to="/agent"
+              search={{}}
               className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
             >
               Agent
