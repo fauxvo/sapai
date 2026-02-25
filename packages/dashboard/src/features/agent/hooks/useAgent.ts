@@ -5,6 +5,8 @@ import {
   listConversations,
   getConversation,
   createConversation,
+  updateConversation,
+  deleteConversation,
 } from '../api';
 import type { AgentParseRequest, AgentExecuteRequest } from '@sapai/shared';
 import { useAuthToken } from './useAuthToken';
@@ -41,6 +43,42 @@ export function useCreateConversation() {
     ) => {
       const token = await getToken();
       return createConversation(body, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useUpdateConversation() {
+  const queryClient = useQueryClient();
+  const getToken = useAuthToken();
+  return useMutation({
+    mutationFn: async (params: {
+      id: string;
+      title?: string;
+      status?: string;
+    }) => {
+      const token = await getToken();
+      const { id, ...body } = params;
+      return updateConversation(id, body, token);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({
+        queryKey: ['conversation', variables.id],
+      });
+    },
+  });
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  const getToken = useAuthToken();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = await getToken();
+      return deleteConversation(id, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

@@ -5,6 +5,8 @@ import {
   useConversation,
   useConversations,
   useCreateConversation,
+  useUpdateConversation,
+  useDeleteConversation,
   useParse,
   useExecute,
 } from '../hooks/useAgent';
@@ -45,6 +47,8 @@ export function AgentChat() {
   const { data: conversations = [] } = useConversations();
   const { data: conversationDetail } = useConversation(activeConvId);
   const createConversation = useCreateConversation();
+  const updateConversation = useUpdateConversation();
+  const deleteConversation = useDeleteConversation();
   const parse = useParse();
   const execute = useExecute(activeConvId);
   const { stream, isStreaming, stages } = useParseStream();
@@ -207,6 +211,34 @@ export function AgentChat() {
     }
   }, [createConversation, setActiveConvId]);
 
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteConversation.mutateAsync(id);
+        if (activeConvId === id) {
+          setActiveConvId(null);
+          setPendingPlan(null);
+          setClarification(null);
+          setOptimisticMessages([]);
+        }
+      } catch {
+        // Error visible via deleteConversation.error
+      }
+    },
+    [deleteConversation, activeConvId, setActiveConvId],
+  );
+
+  const handleRename = useCallback(
+    async (id: string, title: string) => {
+      try {
+        await updateConversation.mutateAsync({ id, title });
+      } catch {
+        // Error visible via updateConversation.error
+      }
+    },
+    [updateConversation],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -228,6 +260,9 @@ export function AgentChat() {
           activeId={activeConvId}
           onSelect={setActiveConvId}
           onNew={handleNewConversation}
+          onDelete={handleDelete}
+          onRename={handleRename}
+          isDeleting={deleteConversation.isPending}
         />
       </div>
 
@@ -248,18 +283,37 @@ export function AgentChat() {
             </div>
           ) : (
             <div className="mx-auto max-w-3xl space-y-3">
-              {displayMessages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
+              {(() => {
+                const lastUserMsg = [...displayMessages]
+                  .reverse()
+                  .find((m) => m.role === 'user');
+                return displayMessages.map((msg) => {
+                  const isLastUser =
+                    msg.role === 'user' && msg === lastUserMsg;
+                  return (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      showRetry={isLastUser && !isBusy}
+                      onRetry={() => sendMessage(msg.content)}
+                    />
+                  );
+                });
+              })()}
             </div>
           )}
 
-          {/* Pipeline progress during streaming */}
-          {isStreaming && (
+          {/* Pipeline progress — visible while streaming or when stage data persists */}
+          {(isStreaming ||
+            stages.completedStages.length > 0 ||
+            stages.currentStage !== null ||
+            stages.error !== null) && (
             <div className="mx-auto mt-3 max-w-3xl">
               <PipelineProgress
                 currentStage={stages.currentStage}
                 completedStages={stages.completedStages}
+                stageDetails={stages.stageDetails}
+                progressItems={stages.progressItems}
                 error={stages.error}
               />
             </div>

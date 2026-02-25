@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MessageBubble } from '../MessageBubble';
 
 describe('MessageBubble', () => {
@@ -112,5 +113,75 @@ describe('MessageBubble', () => {
       );
     });
     expect(paragraph.className).toContain('whitespace-pre-wrap');
+  });
+
+  it('renders retry button when showRetry and onRetry provided', () => {
+    render(
+      <MessageBubble
+        message={{
+          id: '7',
+          conversationId: 'c1',
+          role: 'user',
+          content: 'Retry me',
+          createdAt: new Date().toISOString(),
+        }}
+        showRetry={true}
+        onRetry={() => {}}
+      />,
+    );
+    expect(screen.getByText('Retry')).toBeInTheDocument();
+  });
+
+  it('does not render retry button when showRetry is false', () => {
+    render(
+      <MessageBubble
+        message={{
+          id: '8',
+          conversationId: 'c1',
+          role: 'user',
+          content: 'No retry',
+          createdAt: new Date().toISOString(),
+        }}
+        showRetry={false}
+        onRetry={() => {}}
+      />,
+    );
+    expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+  });
+
+  it('does not render retry button when onRetry is absent', () => {
+    render(
+      <MessageBubble
+        message={{
+          id: '9',
+          conversationId: 'c1',
+          role: 'user',
+          content: 'No callback',
+          createdAt: new Date().toISOString(),
+        }}
+        showRetry={true}
+      />,
+    );
+    expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+  });
+
+  it('calls onRetry when retry button is clicked', async () => {
+    const handleRetry = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        message={{
+          id: '10',
+          conversationId: 'c1',
+          role: 'user',
+          content: 'Click retry',
+          createdAt: new Date().toISOString(),
+        }}
+        showRetry={true}
+        onRetry={handleRetry}
+      />,
+    );
+    await user.click(screen.getByText('Retry'));
+    expect(handleRetry).toHaveBeenCalledTimes(1);
   });
 });

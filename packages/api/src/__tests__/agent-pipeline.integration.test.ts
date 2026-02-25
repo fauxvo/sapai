@@ -20,6 +20,13 @@ vi.mock('../config/environment.js', () => ({
 vi.mock('../config/destination.js', () => ({
   getSapDestination: () => ({ url: 'http://mock' }),
 }));
+vi.mock('../utils/sap-health.js', () => ({
+  checkSapHealth: vi.fn().mockResolvedValue({
+    status: 'connected',
+    authenticated: true,
+    responseTimeMs: 10,
+  }),
+}));
 
 import { AgentOrchestrator } from '../services/agent/AgentOrchestrator.js';
 import { ConversationStore } from '../services/agent/ConversationStore.js';

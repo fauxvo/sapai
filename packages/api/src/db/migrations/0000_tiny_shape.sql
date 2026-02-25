@@ -11,8 +11,8 @@ CREATE TABLE `audit_log` (
 	`output_tokens` integer,
 	`estimated_cost` real,
 	`created_at` text NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`plan_id`) REFERENCES `execution_plans`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`plan_id`) REFERENCES `execution_plans`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `audit_log_conversation_id_idx` ON `audit_log` (`conversation_id`);--> statement-breakpoint
@@ -25,7 +25,7 @@ CREATE TABLE `conversation_entities` (
 	`entity_value` text NOT NULL,
 	`entity_label` text,
 	`updated_at` text NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `conversation_entities_conversation_id_idx` ON `conversation_entities` (`conversation_id`);--> statement-breakpoint
@@ -51,8 +51,8 @@ CREATE TABLE `execution_plans` (
 	`approved_at` text,
 	`executed_at` text,
 	`created_at` text NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `messages` (
@@ -62,7 +62,7 @@ CREATE TABLE `messages` (
 	`content` text NOT NULL,
 	`metadata` text,
 	`created_at` text NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `messages_conversation_id_idx` ON `messages` (`conversation_id`);

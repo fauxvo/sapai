@@ -16,6 +16,7 @@ import type { Executor } from './Executor.js';
 import type { AuditLogger } from './AuditLogger.js';
 import type { Logger } from '../../utils/logger.js';
 import { estimateCost, type TokenUsage } from '../../utils/cost-estimator.js';
+import { checkSapHealth } from '../../utils/sap-health.js';
 import { env } from '../../config/environment.js';
 
 // --- Typed errors ---
@@ -75,7 +76,7 @@ export type OrchestratorResult =
 
 export type StageUpdate = {
   stage: 'parsing' | 'validating' | 'resolving' | 'planning' | 'executing';
-  status: 'started' | 'completed' | 'error';
+  status: 'started' | 'completed' | 'error' | 'progress';
   data?: unknown;
 };
 
@@ -145,14 +146,21 @@ export class AgentOrchestrator {
         await this.deps.conversationStore.getConversationContext(conversationId);
 
       // --- Parse ---
-      await notify({ stage: 'parsing', status: 'started' });
+      await notify({ stage: 'parsing', status: 'started', data: { detail: 'Sending message to AI model for intent classification...' } });
       const parseResult = await this.parseIntent(
         message,
         context ?? undefined,
         conversationId,
         userId,
       );
-      await notify({ stage: 'parsing', status: 'completed', data: parseResult });
+      const { costEstimate } = parseResult;
+      const intentSummary = parseResult.intents.length > 0
+        ? parseResult.intents.map(i => `${i.intentId} (confidence: ${(i.confidence * 100).toFixed(0)}%)`).join(', ')
+        : 'No intents identified';
+      const costSuffix = costEstimate
+        ? ` (${costEstimate.inputTokens.toLocaleString()} in / ${costEstimate.outputTokens.toLocaleString()} out, $${costEstimate.totalCost.toFixed(4)})`
+        : '';
+      await notify({ stage: 'parsing', status: 'completed', data: { detail: `Identified ${parseResult.intents.length} intent(s): ${intentSummary}${costSuffix}`, costEstimate } });
 
       // No intents
       if (parseResult.intents.length === 0) {
@@ -174,12 +182,15 @@ export class AgentOrchestrator {
       }
 
       // --- Validate ---
-      await notify({ stage: 'validating', status: 'started' });
+      await notify({ stage: 'validating', status: 'started', data: { detail: `Checking required fields for ${parseResult.intents.length} intent(s)...` } });
       const validationResults = this.deps.validator.validateAll(
         parseResult.intents,
       );
       const allMissing = validationResults.flatMap((v) => v.missingFields);
-      await notify({ stage: 'validating', status: 'completed' });
+      const validDetail = allMissing.length > 0
+        ? `Missing fields: ${allMissing.join(', ')}`
+        : `All ${validationResults.length} intent(s) passed validation`;
+      await notify({ stage: 'validating', status: 'completed', data: { detail: validDetail } });
 
       if (allMissing.length > 0) {
         const clarificationMsg = `I need more information: ${allMissing.join(', ')}`;
@@ -220,23 +231,57 @@ export class AgentOrchestrator {
         };
       }
 
+      // --- SAP health pre-check ---
+      await notify({ stage: 'resolving', status: 'started', data: { detail: 'Checking SAP connectivity...' } });
+      const sapHealth = await checkSapHealth(5000);
+      if (sapHealth.status === 'error') {
+        const errMsg = `SAP system is unreachable: ${sapHealth.message ?? 'connection failed'} (${sapHealth.responseTimeMs}ms)`;
+        this.deps.logger.warn('SAP health check failed — skipping entity resolution', {
+          status: sapHealth.status,
+          message: sapHealth.message,
+          responseTimeMs: sapHealth.responseTimeMs,
+        });
+        await notify({ stage: 'resolving', status: 'error', data: errMsg });
+        await this.deps.conversationStore.addMessage(
+          conversationId,
+          'agent',
+          `Unable to process your request: the SAP system is currently unavailable. Please try again later.`,
+        );
+        return {
+          type: 'error',
+          conversationId,
+          error: new OrchestratorError(
+            errMsg,
+            'resolve',
+            'RESOLUTION_FAILED',
+            { sapHealth },
+          ),
+        };
+      }
+      this.deps.logger.info('SAP health check passed', {
+        status: sapHealth.status,
+        responseTimeMs: sapHealth.responseTimeMs,
+      });
+
       // --- Resolve entities ---
-      await notify({ stage: 'resolving', status: 'started' });
-      const resolved = await this.resolveEntities(parseResult.intents);
-      await notify({ stage: 'resolving', status: 'completed' });
+      await notify({ stage: 'resolving', status: 'progress', data: { item: 'SAP connectivity', detail: `Connected (${sapHealth.responseTimeMs}ms)`, index: 0, total: 1, status: 'done' } });
+      const resolved = await this.resolveEntities(parseResult.intents, notify);
+      const resolvedCount = resolved.reduce((sum, r) => sum + r.resolvedEntities.length, 0);
+      await notify({ stage: 'resolving', status: 'completed', data: { detail: `Resolved ${resolvedCount} entity reference(s) across ${resolved.length} intent(s)` } });
 
       // --- Build plan ---
-      await notify({ stage: 'planning', status: 'started' });
+      await notify({ stage: 'planning', status: 'started', data: { detail: `Building execution plan for ${resolved.length} resolved intent(s)...` } });
       const plan = this.deps.planBuilder.build(resolved);
       await this.deps.planStore.save(plan, conversationId, userMsg.id);
-      await notify({ stage: 'planning', status: 'completed', data: plan });
+      const actionSummary = plan.intents.map(a => `${a.apiCall.method} ${a.apiCall.path}`).join(', ');
+      await notify({ stage: 'planning', status: 'completed', data: { detail: `Plan: ${plan.intents.length} action(s) — ${actionSummary}${plan.requiresApproval ? ' (approval required)' : ' (auto-execute)'}` } });
 
       // Update active entities
       await this.updateEntities(conversationId, resolved, context);
 
       // --- Execute if read-only ---
       if (!plan.requiresApproval) {
-        await notify({ stage: 'executing', status: 'started' });
+        await notify({ stage: 'executing', status: 'started', data: { detail: `Auto-executing ${plan.intents.length} read-only action(s)...` } });
         const executionResult = await this.deps.executor.execute(
           plan,
           conversationId,
@@ -260,7 +305,9 @@ export class AgentOrchestrator {
           resultSummary,
           { plan, executionResult },
         );
-        await notify({ stage: 'executing', status: 'completed' });
+        const successCount = executionResult.results.filter(r => r.success).length;
+        const failCount = executionResult.results.length - successCount;
+        await notify({ stage: 'executing', status: 'completed', data: { detail: `Execution complete: ${successCount} succeeded, ${failCount} failed` } });
 
         return {
           type: 'executed',
@@ -314,7 +361,7 @@ export class AgentOrchestrator {
     context: AgentConversationContext | undefined,
     conversationId: string,
     userId?: string,
-  ): Promise<ParseResult> {
+  ): Promise<ParseResult & { costEstimate?: { inputTokens: number; outputTokens: number; totalCost: number; model: string } }> {
     const parseStart = Date.now();
     const parseResult = await this.deps.intentParser.parse(
       message,
@@ -325,12 +372,19 @@ export class AgentOrchestrator {
     // Calculate cost if token usage available
     const tokenUsage = (parseResult as ParseResult & { tokenUsage?: TokenUsage }).tokenUsage;
     let costData: { inputTokens?: number; outputTokens?: number; estimatedCost?: number } = {};
+    let costEstimate: { inputTokens: number; outputTokens: number; totalCost: number; model: string } | undefined;
     if (tokenUsage) {
       const cost = estimateCost(tokenUsage);
       costData = {
         inputTokens: tokenUsage.inputTokens,
         outputTokens: tokenUsage.outputTokens,
         estimatedCost: cost.totalCost,
+      };
+      costEstimate = {
+        inputTokens: tokenUsage.inputTokens,
+        outputTokens: tokenUsage.outputTokens,
+        totalCost: cost.totalCost,
+        model: tokenUsage.model,
       };
     }
 
@@ -344,20 +398,68 @@ export class AgentOrchestrator {
       ...costData,
     });
 
-    return parseResult;
+    return { ...parseResult, costEstimate };
   }
 
-  async resolveEntities(intents: ParsedIntent[]) {
-    const settledResults = await Promise.allSettled(
-      intents.map((intent) => this.deps.entityResolver.resolve(intent)),
+  async resolveEntities(
+    intents: ParsedIntent[],
+    notify: (update: StageUpdate) => Promise<void> | void = () => {},
+  ) {
+    const results = await Promise.all(
+      intents.map(async (intent, i) => {
+        const fields = Object.entries(intent.extractedFields)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(', ');
+        await notify({
+          stage: 'resolving',
+          status: 'progress',
+          data: {
+            item: `[${i + 1}/${intents.length}] ${intent.intentId}`,
+            detail: `Resolving: ${fields || 'no fields'}`,
+            index: i,
+            total: intents.length,
+            status: 'running',
+          },
+        });
+
+        try {
+          const result = await this.deps.entityResolver.resolve(intent);
+          const entitySummary = result.resolvedEntities.length > 0
+            ? result.resolvedEntities.map(e => `${e.resolvedLabel} (${e.confidence})`).join(', ')
+            : 'no entities to resolve';
+          await notify({
+            stage: 'resolving',
+            status: 'progress',
+            data: {
+              item: `[${i + 1}/${intents.length}] ${intent.intentId}`,
+              detail: entitySummary,
+              index: i,
+              total: intents.length,
+              status: 'done',
+            },
+          });
+          return result;
+        } catch (err) {
+          await notify({
+            stage: 'resolving',
+            status: 'progress',
+            data: {
+              item: `[${i + 1}/${intents.length}] ${intent.intentId}`,
+              detail: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+              index: i,
+              total: intents.length,
+              status: 'failed',
+            },
+          });
+          return null;
+        }
+      }),
     );
-    return settledResults
-      .filter(
-        (r): r is PromiseFulfilledResult<
-          Awaited<ReturnType<EntityResolver['resolve']>>
-        > => r.status === 'fulfilled',
-      )
-      .map((r) => r.value);
+
+    return results.filter(
+      (r): r is NonNullable<typeof r> => r !== null,
+    );
   }
 
   async executePlan(

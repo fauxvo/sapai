@@ -31,7 +31,7 @@ describe('PipelineProgress', () => {
         error={null}
       />,
     );
-    const stageElements = container.querySelectorAll('.space-y-1\\.5 > div');
+    const stageElements = container.querySelectorAll('.space-y-1 > div');
     const stageTexts = Array.from(stageElements).map(
       (el) => el.textContent?.trim(),
     );
@@ -113,10 +113,11 @@ describe('PipelineProgress', () => {
     const xIcon = container.querySelector('.text-red-500');
     expect(xIcon).toBeInTheDocument();
     expect(xIcon?.textContent).toBe('\u2715');
-    // Error message should be displayed below the stages
-    expect(
-      screen.getByText('Validation failed: invalid fields'),
-    ).toBeInTheDocument();
+    // Error message appears inline under the errored stage AND as summary
+    const errorTexts = screen.getAllByText(
+      'Validation failed: invalid fields',
+    );
+    expect(errorTexts.length).toBe(2);
   });
 
   it('error stage label has red styling', () => {
@@ -169,5 +170,170 @@ describe('PipelineProgress', () => {
       />,
     );
     expect(screen.getByText('Pipeline Progress')).toBeInTheDocument();
+  });
+
+  it('shows started detail for current stage', () => {
+    render(
+      <PipelineProgress
+        currentStage="parsing"
+        completedStages={[]}
+        stageDetails={[
+          { stage: 'parsing', startedDetail: 'Sending message to AI model...' },
+        ]}
+        error={null}
+      />,
+    );
+    expect(screen.getByText('Sending message to AI model...')).toBeInTheDocument();
+  });
+
+  it('shows completed detail for finished stage', () => {
+    render(
+      <PipelineProgress
+        currentStage="validating"
+        completedStages={['parsing']}
+        stageDetails={[
+          { stage: 'parsing', startedDetail: 'Sending...', completedDetail: 'Identified 1 intent(s)' },
+          { stage: 'validating', startedDetail: 'Checking fields...' },
+        ]}
+        error={null}
+      />,
+    );
+    expect(screen.getByText('Identified 1 intent(s)')).toBeInTheDocument();
+    expect(screen.getByText('Checking fields...')).toBeInTheDocument();
+  });
+
+  it('shows progress items list for a stage', () => {
+    const { container } = render(
+      <PipelineProgress
+        currentStage="resolving"
+        completedStages={['parsing', 'validating']}
+        progressItems={{
+          resolving: [
+            { item: '[1/2] GET_PURCHASE_ORDER', detail: 'Resolving: poNumber=4500000001', status: 'done' },
+            { item: '[2/2] LIST_PURCHASE_ORDERS', detail: 'Resolving: no fields', status: 'running' },
+          ],
+        }}
+        error={null}
+      />,
+    );
+    expect(screen.getByText('Resolving: poNumber=4500000001')).toBeInTheDocument();
+    expect(screen.getByText('Resolving: no fields')).toBeInTheDocument();
+    // Done item should have a green checkmark
+    const listItems = container.querySelectorAll('li');
+    expect(listItems.length).toBe(2);
+  });
+
+  it('shows correct status icons for progress items', () => {
+    const { container } = render(
+      <PipelineProgress
+        currentStage="resolving"
+        completedStages={['parsing', 'validating']}
+        progressItems={{
+          resolving: [
+            { item: '[1/3] A', detail: 'Done item', status: 'done' },
+            { item: '[2/3] B', detail: 'Running item', status: 'running' },
+            { item: '[3/3] C', detail: 'Failed item', status: 'failed' },
+          ],
+        }}
+        error={null}
+      />,
+    );
+    const listItems = container.querySelectorAll('li');
+    expect(listItems.length).toBe(3);
+    // First item: done = green checkmark
+    expect(listItems[0].querySelector('.text-green-500')).toBeTruthy();
+    expect(listItems[0].querySelector('.text-green-600')).toBeTruthy();
+    // Second item: running = blue spinner
+    expect(listItems[1].querySelector('.animate-spin')).toBeTruthy();
+    expect(listItems[1].querySelector('.text-blue-600')).toBeTruthy();
+    // Third item: failed = red X
+    expect(listItems[2].querySelector('.text-red-500')).toBeTruthy();
+    expect(listItems[2].querySelector('.text-red-600')).toBeTruthy();
+  });
+
+  it('shows error detail inline under the errored stage', () => {
+    render(
+      <PipelineProgress
+        currentStage="resolving"
+        completedStages={['parsing', 'validating']}
+        stageDetails={[
+          { stage: 'resolving', startedDetail: 'Checking SAP connectivity...' },
+        ]}
+        error="SAP system unreachable: connection refused"
+      />,
+    );
+    // The startedDetail should be shown inline under the errored stage
+    expect(
+      screen.getByText('Checking SAP connectivity...'),
+    ).toBeInTheDocument();
+    // The error message should appear inline under the stage AND as summary at the bottom
+    const errorTexts = screen.getAllByText(
+      'SAP system unreachable: connection refused',
+    );
+    // One inline + one summary = 2
+    expect(errorTexts.length).toBe(2);
+    // Inline error should have red styling
+    errorTexts.forEach((el) => {
+      expect(el.className).toContain('text-red-600');
+    });
+  });
+
+  it('does not show progress items when none exist', () => {
+    const { container } = render(
+      <PipelineProgress
+        currentStage="resolving"
+        completedStages={['parsing', 'validating']}
+        progressItems={{}}
+        error={null}
+      />,
+    );
+    expect(container.querySelectorAll('li').length).toBe(0);
+  });
+
+  it('shows cost estimate breakdown for completed parsing stage', () => {
+    render(
+      <PipelineProgress
+        currentStage="validating"
+        completedStages={['parsing']}
+        stageDetails={[
+          {
+            stage: 'parsing',
+            completedDetail: 'Identified 2 intent(s): getPoPrice (95%), getPoStatus (87%)',
+            costEstimate: {
+              inputTokens: 1234,
+              outputTokens: 567,
+              totalCost: 0.0042,
+              model: 'claude-sonnet-4-5-20250514',
+            },
+          },
+        ]}
+        error={null}
+      />,
+    );
+    // Structured cost breakdown line contains all cost info
+    const costLine = screen.getByText(/1,234 input/);
+    expect(costLine).toBeInTheDocument();
+    expect(costLine.textContent).toContain('567 output');
+    expect(costLine.textContent).toContain('claude-sonnet-4-5-20250514');
+    expect(costLine.textContent).toContain('$0.0042');
+  });
+
+  it('does not show cost estimate for stages without it', () => {
+    const { container } = render(
+      <PipelineProgress
+        currentStage="resolving"
+        completedStages={['parsing', 'validating']}
+        stageDetails={[
+          { stage: 'parsing', completedDetail: 'Identified 1 intent(s)' },
+          { stage: 'validating', completedDetail: 'All passed' },
+        ]}
+        error={null}
+      />,
+    );
+    // No cost breakdown lines (they have the ↳ character)
+    const costLines = container.querySelectorAll('p.text-gray-400');
+    Array.from(costLines).forEach((el) => {
+      expect(el.textContent).not.toContain('input');
+    });
   });
 });

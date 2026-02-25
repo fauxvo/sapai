@@ -1,8 +1,7 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import * as HttpStatusCodes from 'stoker/http-status-codes';
 import jsonContent from 'stoker/openapi/helpers/json-content';
-import { executeHttpRequest } from '@sap-cloud-sdk/http-client';
-import { getSapDestination } from '../../config/destination.js';
+import { checkSapHealth } from '../../utils/sap-health.js';
 
 const SapHealthResponseSchema = z
   .object({
@@ -35,72 +34,14 @@ const sapHealthRoute = createRoute({
 const app = new OpenAPIHono();
 
 app.openapi(sapHealthRoute, async (c) => {
-  const start = Date.now();
-  try {
-    await executeHttpRequest(getSapDestination(), {
-      method: 'get',
-      url: '/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV/',
-      headers: {
-        'x-csrf-token': 'Fetch',
-        'sap-client': getSapDestination().sapClient ?? '',
-        'sap-language': 'EN',
-      },
-    });
+  const result = await checkSapHealth();
 
-    return c.json(
-      {
-        status: 'connected' as const,
-        authenticated: true,
-        responseTimeMs: Date.now() - start,
-      },
-      HttpStatusCodes.OK,
-    );
-  } catch (error: unknown) {
-    const elapsed = Date.now() - start;
-    const response = (error as Record<string, unknown>)?.response as
-      | Record<string, unknown>
-      | undefined;
+  const httpStatus =
+    result.status === 'error'
+      ? HttpStatusCodes.SERVICE_UNAVAILABLE
+      : HttpStatusCodes.OK;
 
-    // Got an HTTP response — SAP is reachable
-    if (response && typeof response.status === 'number') {
-      const httpStatus = response.status as number;
-
-      if (httpStatus === 401 || httpStatus === 403) {
-        return c.json(
-          {
-            status: 'degraded' as const,
-            authenticated: false,
-            responseTimeMs: elapsed,
-            message: `SAP returned ${httpStatus} — check SAP_USERNAME / SAP_PASSWORD credentials and user authorizations`,
-          },
-          HttpStatusCodes.OK,
-        );
-      }
-
-      // Other HTTP errors (404, 500, etc.) — reachable but auth status is
-      // ambiguous (a 500 could occur before authentication is evaluated)
-      return c.json(
-        {
-          status: 'connected' as const,
-          authenticated: null,
-          responseTimeMs: elapsed,
-        },
-        HttpStatusCodes.OK,
-      );
-    }
-
-    // No HTTP response at all — network-level failure
-    return c.json(
-      {
-        status: 'error' as const,
-        authenticated: false,
-        responseTimeMs: elapsed,
-        message:
-          error instanceof Error ? error.message : 'Unknown connection error',
-      },
-      HttpStatusCodes.SERVICE_UNAVAILABLE,
-    );
-  }
+  return c.json(result, httpStatus);
 });
 
 export { app as sapHealthApp };

@@ -33,6 +33,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     expect(screen.getByText('Purchase Order Query')).toBeInTheDocument();
@@ -46,11 +48,14 @@ describe('ConversationList', () => {
         activeId="conv-1"
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
-    const activeButton = screen.getByText('Purchase Order Query').closest('button');
-    expect(activeButton?.className).toContain('bg-blue-50');
-    expect(activeButton?.className).toContain('text-blue-700');
+    // The row div (parent of button) carries the active styling
+    const activeRow = screen.getByText('Purchase Order Query').closest('div.group');
+    expect(activeRow?.className).toContain('bg-blue-50');
+    expect(activeRow?.className).toContain('text-blue-700');
   });
 
   it('does not highlight inactive conversations', () => {
@@ -60,13 +65,15 @@ describe('ConversationList', () => {
         activeId="conv-1"
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
-    const inactiveButton = screen
+    const inactiveRow = screen
       .getByText('Material Stock Check')
-      .closest('button');
-    expect(inactiveButton?.className).not.toContain('bg-blue-50');
-    expect(inactiveButton?.className).toContain('text-gray-700');
+      .closest('div.group');
+    expect(inactiveRow?.className).not.toContain('bg-blue-50');
+    expect(inactiveRow?.className).toContain('text-gray-700');
   });
 
   it('"New" button calls onNew', async () => {
@@ -78,6 +85,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={onNew}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     await user.click(screen.getByText('New'));
@@ -91,6 +100,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
@@ -105,6 +116,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={onSelect}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     await user.click(screen.getByText('Purchase Order Query'));
@@ -118,6 +131,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     // Each conversation should have a time element
@@ -143,6 +158,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     expect(screen.getByText('Untitled')).toBeInTheDocument();
@@ -155,6 +172,8 @@ describe('ConversationList', () => {
         activeId={null}
         onSelect={vi.fn()}
         onNew={vi.fn()}
+        onDelete={vi.fn()}
+        onRename={vi.fn()}
       />,
     );
     expect(screen.getByText('Conversations')).toBeInTheDocument();
