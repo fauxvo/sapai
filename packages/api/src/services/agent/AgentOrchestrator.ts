@@ -1465,6 +1465,38 @@ export class AgentOrchestrator {
               );
             }
 
+            // Gate: block plan creation if any entity resolution failed
+            const failures = resolved.flatMap(({ resolvedEntities }) =>
+              resolvedEntities.filter(
+                (e) =>
+                  e.confidence === 'low' &&
+                  (e.metadata as Record<string, unknown> | undefined)
+                    ?.exists === false,
+              ),
+            );
+            if (failures.length > 0) {
+              const failureSummary = failures
+                .map((e) => {
+                  const meta = e.metadata as
+                    | Record<string, unknown>
+                    | undefined;
+                  const prefix =
+                    e.entityType === 'purchaseOrder'
+                      ? 'PO'
+                      : (e.entityType ?? 'Entity');
+                  return meta?.httpStatus === 404
+                    ? `${prefix} ${e.originalValue} not found`
+                    : `${prefix} ${e.originalValue} could not be verified (lookup failed)`;
+                })
+                .join('; ');
+              throw new OrchestratorError(
+                `Cannot build execution plan: ${failureSummary}. All entities must be validated before proceeding.`,
+                'plan',
+                'PLAN_FAILED',
+                { failures: failures.map((e) => e.originalValue) },
+              );
+            }
+
             await notify({
               stage: 'planning',
               status: 'started',

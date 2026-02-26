@@ -69,8 +69,24 @@ const mockPurchaseOrderItemNoteApi = {
   },
 };
 
+// Mock for PO existence check (separate request builder)
+const mockPoCheckGetByKey = vi.fn();
+const mockPurchaseOrderApi = {
+  requestBuilder: () => ({ getByKey: mockPoCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {} },
+};
+
+// Mock for PO item existence check
+const mockItemCheckGetByKey = vi.fn();
+const mockPurchaseOrderItemApi = {
+  requestBuilder: () => ({ getByKey: mockItemCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {}, PURCHASE_ORDER_ITEM: {} },
+};
+
 vi.mock('../../generated/purchase-order-service/service.js', () => ({
   purchaseOrderService: () => ({
+    purchaseOrderApi: mockPurchaseOrderApi,
+    purchaseOrderItemApi: mockPurchaseOrderItemApi,
     purchaseOrderNoteApi: mockPurchaseOrderNoteApi,
     purchaseOrderItemNoteApi: mockPurchaseOrderItemNoteApi,
   }),
@@ -101,7 +117,7 @@ describe('PurchaseOrderNoteService', () => {
   // ── PO Header Notes ──────────────────────────────────────────────
 
   describe('getNotes', () => {
-    it('returns ok result with notes filtered by PO', async () => {
+    it('returns ok result with notes filtered by PO (no extra SAP call)', async () => {
       const mockNotes = [
         {
           purchaseOrder: '4500000001',
@@ -129,6 +145,7 @@ describe('PurchaseOrderNoteService', () => {
       expect(
         mockPurchaseOrderNoteApi.schema.PURCHASE_ORDER.equals,
       ).toHaveBeenCalledWith('4500000001');
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
     });
 
     it('returns fail result on SAP error', async () => {
@@ -152,6 +169,38 @@ describe('PurchaseOrderNoteService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error).toBeDefined();
+    });
+
+    it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value: "Resource not found for segment 'A_PurchaseOrderType'",
+            },
+          },
+        },
+      };
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
+      });
+
+      const result = await service.getNotes('4500005678');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
     });
   });
 
@@ -294,7 +343,7 @@ describe('PurchaseOrderNoteService', () => {
   // ── PO Item Notes ────────────────────────────────────────────────
 
   describe('getItemNotes', () => {
-    it('returns ok result with notes filtered by PO and item', async () => {
+    it('returns ok result with notes filtered by PO and item (no extra SAP call)', async () => {
       const mockNotes = [
         {
           purchaseOrder: '4500000001',
@@ -320,6 +369,7 @@ describe('PurchaseOrderNoteService', () => {
       expect(
         mockPurchaseOrderItemNoteApi.schema.PURCHASE_ORDER_ITEM.equals,
       ).toHaveBeenCalledWith('10');
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
     });
 
     it('returns fail result on SAP error', async () => {
@@ -343,6 +393,38 @@ describe('PurchaseOrderNoteService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error).toBeDefined();
+    });
+
+    it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockItemGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value: "Resource not found for segment 'A_PurchaseOrderType'",
+            },
+          },
+        },
+      };
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
+      });
+
+      const result = await service.getItemNotes('4500005678', '10');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
     });
   });
 

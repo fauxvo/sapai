@@ -6,3 +6,5 @@ dist
 .env.local
 .env.*.local
 packages/api/data/
+.DS_Store
+.claude/

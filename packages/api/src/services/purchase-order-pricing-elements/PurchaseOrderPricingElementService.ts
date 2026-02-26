@@ -1,20 +1,18 @@
 import { BigNumber } from 'bignumber.js';
 import { purchaseOrderService } from '../../generated/purchase-order-service/service.js';
 import type { PurOrdPricingElement } from '../../generated/purchase-order-service/PurOrdPricingElement.js';
-import { BaseService } from '../base/BaseService.js';
+import { PurchaseOrderBaseService } from '../base/PurchaseOrderBaseService.js';
 import type { ServiceResult } from '../base/types.js';
 import type { UpdatePricingElementInput } from './types.js';
 
-export class PurchaseOrderPricingElementService extends BaseService {
-  // Safe as singleton: purchaseOrderService() returns stateless API accessors.
-  // CSRF tokens and ETags are managed per-request by the SDK, not cached here.
+export class PurchaseOrderPricingElementService extends PurchaseOrderBaseService {
   private readonly svc = purchaseOrderService();
 
   async getPricingElements(
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurOrdPricingElement[]>> {
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purOrdPricingElementApi } = this.svc;
       const { schema } = purOrdPricingElementApi;
       return purOrdPricingElementApi
@@ -26,6 +24,19 @@ export class PurchaseOrderPricingElementService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because no pricing elements, or PO/item doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const error = await this.verifyPoItemExists<PurOrdPricingElement[]>(
+        poId,
+        itemId,
+        this.svc.purchaseOrderApi,
+        this.svc.purchaseOrderItemApi,
+      );
+      if (error) return error;
+    }
+
+    return result;
   }
 
   async getPricingElementByKey(

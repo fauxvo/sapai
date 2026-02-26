@@ -4,7 +4,7 @@ import moment from 'moment';
 import { purchaseOrderService } from '../../generated/purchase-order-service/service.js';
 import type { PurchaseOrderScheduleLine } from '../../generated/purchase-order-service/PurchaseOrderScheduleLine.js';
 import type { PoSubcontractingComponent } from '../../generated/purchase-order-service/PoSubcontractingComponent.js';
-import { BaseService } from '../base/BaseService.js';
+import { PurchaseOrderBaseService } from '../base/PurchaseOrderBaseService.js';
 import type { ServiceResult } from '../base/types.js';
 import type {
   CreateScheduleLineInput,
@@ -12,9 +12,7 @@ import type {
   UpdateSubcontractingComponentInput,
 } from './types.js';
 
-export class PurchaseOrderScheduleLineService extends BaseService {
-  // Safe as singleton: purchaseOrderService() returns stateless API accessors.
-  // CSRF tokens and ETags are managed per-request by the SDK, not cached here.
+export class PurchaseOrderScheduleLineService extends PurchaseOrderBaseService {
   private readonly svc = purchaseOrderService();
 
   // ---------------------------------------------------------------------------
@@ -25,7 +23,7 @@ export class PurchaseOrderScheduleLineService extends BaseService {
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurchaseOrderScheduleLine[]>> {
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderScheduleLineApi } = this.svc;
       const { schema } = purchaseOrderScheduleLineApi;
       return purchaseOrderScheduleLineApi
@@ -37,6 +35,20 @@ export class PurchaseOrderScheduleLineService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because no schedule lines, or PO/item doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const error =
+        await this.verifyPoItemExists<PurchaseOrderScheduleLine[]>(
+          poId,
+          itemId,
+          this.svc.purchaseOrderApi,
+          this.svc.purchaseOrderItemApi,
+        );
+      if (error) return error;
+    }
+
+    return result;
   }
 
   async getScheduleLineByKey(
@@ -183,7 +195,7 @@ export class PurchaseOrderScheduleLineService extends BaseService {
     itemId: string,
     lineId: string,
   ): Promise<ServiceResult<PoSubcontractingComponent[]>> {
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { poSubcontractingComponentApi } = this.svc;
       const { schema } = poSubcontractingComponentApi;
       return poSubcontractingComponentApi
@@ -196,6 +208,22 @@ export class PurchaseOrderScheduleLineService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because no components, or PO/item/line doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const error =
+        await this.verifyScheduleLineExists<PoSubcontractingComponent[]>(
+          poId,
+          itemId,
+          lineId,
+          this.svc.purchaseOrderApi,
+          this.svc.purchaseOrderItemApi,
+          this.svc.purchaseOrderScheduleLineApi,
+        );
+      if (error) return error;
+    }
+
+    return result;
   }
 
   async getComponentByKey(

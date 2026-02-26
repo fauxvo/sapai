@@ -32,8 +32,24 @@ const mockPurOrdAccountAssignmentApi = {
   },
 };
 
+// Mock for PO existence check (separate request builder)
+const mockPoCheckGetByKey = vi.fn();
+const mockPurchaseOrderApi = {
+  requestBuilder: () => ({ getByKey: mockPoCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {} },
+};
+
+// Mock for PO item existence check
+const mockItemCheckGetByKey = vi.fn();
+const mockPurchaseOrderItemApi = {
+  requestBuilder: () => ({ getByKey: mockItemCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {}, PURCHASE_ORDER_ITEM: {} },
+};
+
 vi.mock('../../generated/purchase-order-service/service.js', () => ({
   purchaseOrderService: () => ({
+    purchaseOrderApi: mockPurchaseOrderApi,
+    purchaseOrderItemApi: mockPurchaseOrderItemApi,
     purOrdAccountAssignmentApi: mockPurOrdAccountAssignmentApi,
   }),
 }));
@@ -61,7 +77,7 @@ describe('PurchaseOrderAccountAssignmentService', () => {
   });
 
   describe('getAccountAssignments', () => {
-    it('returns list of account assignments for a PO item', async () => {
+    it('returns list of account assignments (no extra SAP call)', async () => {
       const mockAssignments = [
         {
           purchaseOrder: '4500000001',
@@ -82,6 +98,39 @@ describe('PurchaseOrderAccountAssignmentService', () => {
       if (!result.success) return;
       expect(result.data).toHaveLength(1);
       expect(result.data[0].accountAssignmentNumber).toBe('01');
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value: "Resource not found for segment 'A_PurchaseOrderType'",
+            },
+          },
+        },
+      };
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
+      });
+
+      const result = await service.getAccountAssignments('4500005678', '10');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
     });
   });
 

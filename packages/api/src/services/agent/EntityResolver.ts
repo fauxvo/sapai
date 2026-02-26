@@ -256,7 +256,12 @@ export class EntityResolver {
           confidence: 'low',
           matchType: 'po_lookup',
           entityType: 'purchaseOrder',
-          metadata: { exists: false, error: result.error },
+          metadata: {
+            exists: false,
+            error: result.error.message,
+            errorCode: result.error.code,
+            httpStatus: result.error.httpStatus,
+          },
         },
         summary: null,
         rawItems: [],

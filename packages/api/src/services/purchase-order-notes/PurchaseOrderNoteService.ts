@@ -1,7 +1,7 @@
 import { purchaseOrderService } from '../../generated/purchase-order-service/service.js';
 import type { PurchaseOrderNote } from '../../generated/purchase-order-service/PurchaseOrderNote.js';
 import type { PurchaseOrderItemNote } from '../../generated/purchase-order-service/PurchaseOrderItemNote.js';
-import { BaseService } from '../base/BaseService.js';
+import { PurchaseOrderBaseService } from '../base/PurchaseOrderBaseService.js';
 import type { ServiceResult } from '../base/types.js';
 import type {
   CreatePONoteInput,
@@ -10,15 +10,13 @@ import type {
   UpdatePOItemNoteInput,
 } from './types.js';
 
-export class PurchaseOrderNoteService extends BaseService {
-  // Safe as singleton: purchaseOrderService() returns stateless API accessors.
-  // CSRF tokens and ETags are managed per-request by the SDK, not cached here.
+export class PurchaseOrderNoteService extends PurchaseOrderBaseService {
   private readonly svc = purchaseOrderService();
 
   // ── PO Header Notes ──────────────────────────────────────────────
 
   async getNotes(poId: string): Promise<ServiceResult<PurchaseOrderNote[]>> {
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderNoteApi } = this.svc;
       return purchaseOrderNoteApi
         .requestBuilder()
@@ -26,6 +24,17 @@ export class PurchaseOrderNoteService extends BaseService {
         .filter(purchaseOrderNoteApi.schema.PURCHASE_ORDER.equals(poId))
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because PO has no notes, or PO doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const error = await this.verifyPoExists<PurchaseOrderNote[]>(
+        poId,
+        this.svc.purchaseOrderApi,
+      );
+      if (error) return error;
+    }
+
+    return result;
   }
 
   async getNoteByKey(
@@ -108,7 +117,7 @@ export class PurchaseOrderNoteService extends BaseService {
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurchaseOrderItemNote[]>> {
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderItemNoteApi } = this.svc;
       return purchaseOrderItemNoteApi
         .requestBuilder()
@@ -119,6 +128,20 @@ export class PurchaseOrderNoteService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because no item notes, or PO/item doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const error =
+        await this.verifyPoItemExists<PurchaseOrderItemNote[]>(
+          poId,
+          itemId,
+          this.svc.purchaseOrderApi,
+          this.svc.purchaseOrderItemApi,
+        );
+      if (error) return error;
+    }
+
+    return result;
   }
 
   async getItemNoteByKey(
