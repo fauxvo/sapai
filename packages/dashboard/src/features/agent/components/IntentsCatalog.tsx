@@ -253,6 +253,7 @@ export function IntentsCatalog() {
             <button
               type="button"
               onClick={() => setActiveCategory('all')}
+              aria-pressed={activeCategory === 'all'}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeCategory === 'all'
                   ? 'bg-gray-900 text-white'
@@ -268,6 +269,7 @@ export function IntentsCatalog() {
                   key={cat}
                   type="button"
                   onClick={() => setActiveCategory(cat)}
+                  aria-pressed={activeCategory === cat}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     activeCategory === cat
                       ? `${style.bg} ${style.text} ring-1 ring-current`

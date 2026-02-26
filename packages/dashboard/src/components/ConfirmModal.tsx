@@ -27,6 +27,8 @@ export function ConfirmModal({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   // Focus the cancel button when opened (safer default for destructive actions)
   useEffect(() => {
@@ -35,11 +37,11 @@ export function ConfirmModal({
     }
   }, [open]);
 
-  // Close on Escape key
+  // Close on Escape key — use ref for onCancel to avoid re-attaching listener
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !loading) {
-        onCancel();
+        onCancelRef.current();
       }
       // Trap focus within modal
       if (e.key === 'Tab' && modalRef.current) {
@@ -58,7 +60,7 @@ export function ConfirmModal({
         }
       }
     },
-    [onCancel, loading],
+    [loading],
   );
 
   useEffect(() => {

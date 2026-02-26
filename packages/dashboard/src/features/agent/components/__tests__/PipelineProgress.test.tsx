@@ -55,7 +55,7 @@ describe('PipelineProgress', () => {
     // The active stage should have animate-spin class
     const spinner = container.querySelector('.animate-spin');
     expect(spinner).toBeInTheDocument();
-    expect(spinner?.className).toContain('text-blue-500');
+    expect(spinner?.className).toContain('border-t-blue-600');
   });
 
   it('active stage label has blue styling', () => {
@@ -80,7 +80,7 @@ describe('PipelineProgress', () => {
       />,
     );
     // Checkmark character is ✓ (&#10003;)
-    const greenChecks = container.querySelectorAll('.text-green-500');
+    const greenChecks = container.querySelectorAll('.text-emerald-500');
     expect(greenChecks.length).toBe(2);
     greenChecks.forEach((check) => {
       expect(check.textContent).toBe('\u2713');
@@ -96,9 +96,9 @@ describe('PipelineProgress', () => {
       />,
     );
     const parsingLabel = screen.getByText('Parsing intent');
-    expect(parsingLabel.className).toContain('text-green-700');
+    expect(parsingLabel.className).toContain('text-emerald-700');
     const validatingLabel = screen.getByText('Validating');
-    expect(validatingLabel.className).toContain('text-green-700');
+    expect(validatingLabel.className).toContain('text-emerald-700');
   });
 
   it('error state shows X icon and error message', () => {
@@ -113,9 +113,10 @@ describe('PipelineProgress', () => {
     const xIcon = container.querySelector('.text-red-500');
     expect(xIcon).toBeInTheDocument();
     expect(xIcon?.textContent).toBe('\u2715');
-    // Error message appears inline under the errored stage AND as summary
+    // Error message appears inline under the errored stage only
+    // (summary only shows when currentStage is not a known stage)
     const errorTexts = screen.getAllByText('Validation failed: invalid fields');
-    expect(errorTexts.length).toBe(2);
+    expect(errorTexts.length).toBe(1);
   });
 
   it('error stage label has red styling', () => {
@@ -254,9 +255,9 @@ describe('PipelineProgress', () => {
     );
     const listItems = container.querySelectorAll('li');
     expect(listItems.length).toBe(3);
-    // First item: done = green checkmark
-    expect(listItems[0].querySelector('.text-green-500')).toBeTruthy();
-    expect(listItems[0].querySelector('.text-green-600')).toBeTruthy();
+    // First item: done = emerald checkmark, gray detail text
+    expect(listItems[0].querySelector('.text-emerald-500')).toBeTruthy();
+    expect(listItems[0].querySelector('.text-gray-600')).toBeTruthy();
     // Second item: running = blue spinner
     expect(listItems[1].querySelector('.animate-spin')).toBeTruthy();
     expect(listItems[1].querySelector('.text-blue-600')).toBeTruthy();
@@ -280,15 +281,15 @@ describe('PipelineProgress', () => {
     expect(
       screen.getByText('Checking SAP connectivity...'),
     ).toBeInTheDocument();
-    // The error message should appear inline under the stage AND as summary at the bottom
+    // The error message appears inline under the stage only
+    // (summary only shows when currentStage is not a known stage)
     const errorTexts = screen.getAllByText(
       'SAP system unreachable: connection refused',
     );
-    // One inline + one summary = 2
-    expect(errorTexts.length).toBe(2);
+    expect(errorTexts.length).toBe(1);
     // Inline error should have red styling
     errorTexts.forEach((el) => {
-      expect(el.className).toContain('text-red-600');
+      expect(el.className).toContain('text-red-700');
     });
   });
 
@@ -326,9 +327,9 @@ describe('PipelineProgress', () => {
       />,
     );
     // Structured cost breakdown line contains all cost info
-    const costLine = screen.getByText(/1,234 input/);
+    const costLine = screen.getByText(/1,234 in/);
     expect(costLine).toBeInTheDocument();
-    expect(costLine.textContent).toContain('567 output');
+    expect(costLine.textContent).toContain('567 out');
     expect(costLine.textContent).toContain('claude-sonnet-4-5-20250514');
     expect(costLine.textContent).toContain('$0.0042');
   });
