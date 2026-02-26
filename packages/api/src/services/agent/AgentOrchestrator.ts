@@ -1476,10 +1476,18 @@ export class AgentOrchestrator {
             );
             if (failures.length > 0) {
               const failureSummary = failures
-                .map(
-                  (e) =>
-                    `${e.entityType === 'purchaseOrder' ? 'PO' : e.entityType ?? 'Entity'} ${e.originalValue} not found`,
-                )
+                .map((e) => {
+                  const meta = e.metadata as
+                    | Record<string, unknown>
+                    | undefined;
+                  const prefix =
+                    e.entityType === 'purchaseOrder'
+                      ? 'PO'
+                      : (e.entityType ?? 'Entity');
+                  return meta?.httpStatus === 404
+                    ? `${prefix} ${e.originalValue} not found`
+                    : `${prefix} ${e.originalValue} could not be verified (lookup failed)`;
+                })
                 .join('; ');
               throw new OrchestratorError(
                 `Cannot build execution plan: ${failureSummary}. All entities must be validated before proceeding.`,

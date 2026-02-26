@@ -114,6 +114,11 @@ export abstract class PurchaseOrderBaseService extends BaseService {
       purchaseOrderScheduleLineApi
         .requestBuilder()
         .getByKey(poId, itemId, lineId)
+        .select(
+          purchaseOrderScheduleLineApi.schema.PURCHASING_DOCUMENT,
+          purchaseOrderScheduleLineApi.schema.PURCHASING_DOCUMENT_ITEM,
+          purchaseOrderScheduleLineApi.schema.SCHEDULE_LINE,
+        )
         .execute(this.destination),
     );
     if (!check.success) {

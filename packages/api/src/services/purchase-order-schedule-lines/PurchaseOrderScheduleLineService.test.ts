@@ -357,7 +357,9 @@ describe('PurchaseOrderScheduleLineService', () => {
         },
       };
       mockGetByKey.mockReturnValue({
-        execute: vi.fn().mockRejectedValue(sapError),
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
       });
 
       const result = await service.getComponents(
@@ -406,7 +408,9 @@ describe('PurchaseOrderScheduleLineService', () => {
         },
       };
       mockGetByKey.mockReturnValue({
-        execute: vi.fn().mockRejectedValue(sapError),
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
       });
 
       const result = await service.getComponents(
