@@ -13,6 +13,7 @@ import type {
 import type { ConversationStore } from './ConversationStore.js';
 import type { IntentParser } from './IntentParser.js';
 import type { Validator } from './Validator.js';
+import { intentMap } from './intents/registry.js';
 import type { EntityResolver } from './EntityResolver.js';
 import type { PlanBuilder } from './PlanBuilder.js';
 import type { PlanStore } from './PlanStore.js';
@@ -1113,6 +1114,21 @@ export class AgentOrchestrator {
                 status: 'done' as const,
               }));
 
+            // Emit parsed field items per intent for the ParsedFieldsTable
+            for (const intent of parseResult.intents) {
+              progressItems.push({
+                item: `fields:${intent.intentId}`,
+                detail: `${Object.keys(intent.extractedFields).filter((k) => intent.extractedFields[k] !== undefined && intent.extractedFields[k] !== null && intent.extractedFields[k] !== '').length} fields extracted`,
+                status: 'done' as const,
+                entityType: 'parsedFields',
+                metadata: {
+                  intentId: intent.intentId,
+                  extractedFields: intent.extractedFields,
+                  fieldConfidence: intent.fieldConfidence,
+                },
+              });
+            }
+
             const stageDuration = Date.now() - stageStart;
             await store.updateStage(stageRecord.id, {
               status: 'completed',
@@ -1183,6 +1199,61 @@ export class AgentOrchestrator {
                 ? `Missing fields: ${allMissing.join(', ')}`
                 : `All ${validationResults.length} intent(s) passed validation`;
 
+            // Build field-by-field validation progress items
+            const validationProgressItems: PipelineProgressItem[] = [];
+            for (const result of validationResults) {
+              const definition = intentMap.get(result.intent.intentId);
+              if (!definition) continue;
+
+              // Required fields
+              for (const field of definition.requiredFields) {
+                const value = result.intent.extractedFields[field.name];
+                const fc = result.intent.fieldConfidence?.[field.name];
+                const isPresent =
+                  value !== undefined && value !== null && value !== '';
+                validationProgressItems.push({
+                  item: `${result.intent.intentId}:${field.name}`,
+                  detail: isPresent ? `${String(value)}` : `MISSING`,
+                  status: isPresent ? 'done' : 'failed',
+                  entityType: 'validationField',
+                  metadata: {
+                    intentId: result.intent.intentId,
+                    fieldName: field.name,
+                    fieldDescription: field.description,
+                    fieldType: field.type,
+                    required: true,
+                    value: isPresent ? value : null,
+                    fieldConfidence: fc ?? null,
+                    resolutionStrategy: field.resolutionStrategy ?? null,
+                  },
+                });
+              }
+
+              // Optional fields that have values
+              for (const field of definition.optionalFields) {
+                const value = result.intent.extractedFields[field.name];
+                if (value === undefined || value === null || value === '')
+                  continue;
+                const fc = result.intent.fieldConfidence?.[field.name];
+                validationProgressItems.push({
+                  item: `${result.intent.intentId}:${field.name}`,
+                  detail: `${String(value)}`,
+                  status: 'done',
+                  entityType: 'validationField',
+                  metadata: {
+                    intentId: result.intent.intentId,
+                    fieldName: field.name,
+                    fieldDescription: field.description,
+                    fieldType: field.type,
+                    required: false,
+                    value,
+                    fieldConfidence: fc ?? null,
+                    resolutionStrategy: field.resolutionStrategy ?? null,
+                  },
+                });
+              }
+            }
+
             const stageDuration = Date.now() - stageStart;
             await store.updateStage(stageRecord.id, {
               status: 'completed',
@@ -1190,6 +1261,7 @@ export class AgentOrchestrator {
               durationMs: stageDuration,
               detail: validDetail,
               output: validationResults,
+              progressItems: validationProgressItems,
             });
 
             await notify({
@@ -1294,19 +1366,49 @@ export class AgentOrchestrator {
             // Resolve entities
             resolved = await this.resolveEntities(parseResult.intents, notify);
 
-            const progressItems: PipelineProgressItem[] = resolved.flatMap(
-              (r) =>
-                r.resolvedEntities.map((e) => ({
+            const progressItems: PipelineProgressItem[] = [];
+
+            // Add entity items with proper entityType and full metadata
+            for (const r of resolved) {
+              for (const e of r.resolvedEntities) {
+                // Map parseConfidence from the intent's fieldConfidence
+                const fieldName =
+                  e.entityType === 'purchaseOrder'
+                    ? 'poNumber'
+                    : 'itemIdentifier';
+                const fc = r.intent.fieldConfidence?.[fieldName];
+
+                progressItems.push({
                   item: e.resolvedLabel,
-                  detail: `${e.originalValue} -> ${e.resolvedValue}`,
+                  detail: `${e.originalValue} \u2192 ${e.resolvedValue}`,
                   status: 'done' as const,
-                  entityType: 'entity',
-                  matchType: e.confidence,
+                  entityType: e.entityType, // 'purchaseOrder' | 'purchaseOrderItem'
+                  matchType: e.matchType,
                   confidence: e.confidence,
                   originalValue: e.originalValue,
                   resolvedValue: e.resolvedValue,
-                })),
-            );
+                  metadata: e.metadata,
+                  parseConfidence: fc,
+                  candidates: e.candidates,
+                });
+              }
+
+              // Add API trace items
+              for (const t of r.traces) {
+                progressItems.push({
+                  item: `${t.method} ${t.path}`,
+                  detail: t.detail,
+                  status: t.status === 'error' ? 'failed' : 'done',
+                  entityType: 'apiTrace',
+                  metadata: {
+                    method: t.method,
+                    path: t.path,
+                    callStatus: t.status,
+                    durationMs: t.durationMs,
+                  },
+                });
+              }
+            }
 
             const resolvedCount = resolved.reduce(
               (sum, r) => sum + r.resolvedEntities.length,

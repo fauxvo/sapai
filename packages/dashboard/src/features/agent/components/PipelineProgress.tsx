@@ -119,6 +119,7 @@ interface POHeaderMeta {
 const FIELD_LABELS: Record<string, string> = {
   poNumber: 'PO Number',
   itemNumber: 'PO Item',
+  itemIdentifier: 'Item Identifier',
   quantity: 'Quantity',
   newQuantity: 'New Quantity',
   deliveryDate: 'Delivery Date',
@@ -129,6 +130,8 @@ const FIELD_LABELS: Record<string, string> = {
   currency: 'Currency',
   netPrice: 'Net Price',
   unit: 'Unit',
+  orderQuantity: 'Order Quantity',
+  purchaseOrderQuantityUnit: 'Quantity Unit',
 };
 
 interface FieldConfidenceData {
@@ -370,6 +373,317 @@ function ParsedFieldsTable({ item }: { item: ProgressItem }) {
         </span>
       </div>
     </div>
+  );
+}
+
+// --- Validation fields table ---
+
+interface ValidationFieldMeta {
+  intentId?: string;
+  fieldName?: string;
+  fieldDescription?: string;
+  fieldType?: string;
+  required?: boolean;
+  value?: unknown;
+  fieldConfidence?: FieldConfidenceData | null;
+  resolutionStrategy?: string | null;
+}
+
+function ValidationTable({ items }: { items: ProgressItem[] }) {
+  if (items.length === 0) return null;
+
+  // Group by intentId
+  const grouped = new Map<string, ProgressItem[]>();
+  for (const item of items) {
+    const meta = item.metadata as ValidationFieldMeta | undefined;
+    const key = meta?.intentId ?? 'unknown';
+    const arr = grouped.get(key) ?? [];
+    arr.push(item);
+    grouped.set(key, arr);
+  }
+
+  return (
+    <>
+      {Array.from(grouped.entries()).map(([intentId, fields]) => {
+        const requiredFields = fields.filter(
+          (f) => (f.metadata as ValidationFieldMeta)?.required,
+        );
+        const optionalFields = fields.filter(
+          (f) => !(f.metadata as ValidationFieldMeta)?.required,
+        );
+        const requiredPresent = requiredFields.filter(
+          (f) => f.status === 'done',
+        ).length;
+        const requiredTotal = requiredFields.length;
+        const allSatisfied = requiredPresent === requiredTotal;
+
+        return (
+          <div
+            key={intentId}
+            className="mt-1.5 overflow-hidden rounded-md border border-indigo-200 bg-white shadow-sm"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-indigo-200/60 bg-gradient-to-r from-indigo-50 to-indigo-50/40 px-2.5 py-1.5">
+              <div className="flex items-center gap-2">
+                <svg
+                  className="h-3 w-3 text-indigo-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
+                  />
+                </svg>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
+                  Intent Requirements
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-indigo-100/80 px-1.5 py-0.5 font-mono text-[8px] text-indigo-400">
+                  {intentId}
+                </span>
+                <span
+                  className={`text-[10px] font-semibold ${allSatisfied ? 'text-emerald-600' : 'text-red-600'}`}
+                >
+                  {requiredPresent}/{requiredTotal} required
+                </span>
+              </div>
+            </div>
+
+            {/* Column headers */}
+            <div className="border-b border-indigo-100/80 bg-indigo-50/30">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="w-5 py-1 pl-2.5 pr-0" />
+                    <th className="py-1 pl-1 pr-2 text-left text-[9px] font-medium uppercase tracking-wider text-indigo-400/80">
+                      Field
+                    </th>
+                    <th className="px-2 py-1 text-left text-[9px] font-medium uppercase tracking-wider text-indigo-400/80">
+                      Value
+                    </th>
+                    <th className="py-1 pl-2 pr-2.5 text-right text-[9px] font-medium uppercase tracking-wider text-indigo-400/80">
+                      Confidence
+                    </th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+
+            {/* Required fields */}
+            <table className="w-full">
+              <tbody className="divide-y divide-indigo-100/50">
+                {requiredFields.map((field) => (
+                  <ValidationFieldRow
+                    key={field.item}
+                    field={field}
+                    isRequired
+                  />
+                ))}
+                {optionalFields.map((field) => (
+                  <ValidationFieldRow key={field.item} field={field} />
+                ))}
+              </tbody>
+            </table>
+
+            {/* Footer */}
+            <div className="border-t border-indigo-100/60 bg-indigo-50/20 px-2.5 py-1">
+              <span
+                className={`text-[9px] ${allSatisfied ? 'text-emerald-500' : 'text-red-500'}`}
+              >
+                {allSatisfied
+                  ? `\u2713 All ${requiredTotal} required field${requiredTotal !== 1 ? 's' : ''} satisfied`
+                  : `\u2717 ${requiredTotal - requiredPresent} required field${requiredTotal - requiredPresent !== 1 ? 's' : ''} missing`}
+                {optionalFields.length > 0 &&
+                  ` \u00B7 ${optionalFields.length} optional provided`}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function ValidationFieldRow({
+  field,
+  isRequired = false,
+}: {
+  field: ProgressItem;
+  isRequired?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const meta = field.metadata as ValidationFieldMeta | undefined;
+  const fc = meta?.fieldConfidence;
+  const pct = fc ? Math.round(fc.confidence * 100) : null;
+  const hasAlternatives = !!(fc?.alternatives && fc.alternatives.length > 0);
+  const isMissing = field.status === 'failed';
+
+  const badgeText =
+    pct === null
+      ? 'text-gray-400'
+      : pct >= 90
+        ? 'text-emerald-600'
+        : pct >= 70
+          ? 'text-blue-600'
+          : pct >= 50
+            ? 'text-amber-600'
+            : 'text-red-600';
+  const barColor =
+    pct === null
+      ? 'bg-gray-300'
+      : pct >= 90
+        ? 'bg-emerald-500'
+        : pct >= 70
+          ? 'bg-blue-500'
+          : pct >= 50
+            ? 'bg-amber-500'
+            : 'bg-red-500';
+  const trackColor =
+    pct === null
+      ? 'bg-gray-100'
+      : pct >= 90
+        ? 'bg-emerald-100'
+        : pct >= 70
+          ? 'bg-blue-100'
+          : pct >= 50
+            ? 'bg-amber-100'
+            : 'bg-red-100';
+
+  return (
+    <>
+      <tr
+        className={`group transition-colors hover:bg-indigo-50/60 ${hasAlternatives ? 'cursor-pointer' : ''}`}
+        onClick={hasAlternatives ? () => setExpanded(!expanded) : undefined}
+      >
+        {/* Status icon */}
+        <td className="w-5 py-1.5 pl-2.5 pr-0 text-center">
+          {isMissing ? (
+            <span className="text-[10px] text-red-500">{'\u2717'}</span>
+          ) : (
+            <span className="text-[10px] text-emerald-500">{'\u2713'}</span>
+          )}
+        </td>
+
+        {/* Field name */}
+        <td className="py-1.5 pl-1 pr-2">
+          <div className="flex items-center gap-1.5">
+            {hasAlternatives && (
+              <svg
+                className={`h-2.5 w-2.5 flex-shrink-0 text-amber-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                />
+              </svg>
+            )}
+            <span className="text-[11px] font-medium text-indigo-800">
+              {FIELD_LABELS[meta?.fieldName ?? ''] ?? meta?.fieldName}
+            </span>
+            <span
+              className={`rounded px-1 py-0.5 text-[8px] font-semibold uppercase ${
+                isRequired
+                  ? 'bg-indigo-100 text-indigo-500'
+                  : 'bg-gray-100 text-gray-400'
+              }`}
+            >
+              {isRequired ? 'req' : 'opt'}
+            </span>
+          </div>
+          {meta?.fieldDescription && (
+            <p className="text-[9px] text-indigo-400/70">
+              {meta.fieldDescription}
+            </p>
+          )}
+          {fc?.rawValue && (
+            <p className="text-[9px] text-indigo-500/70">
+              &ldquo;{fc.rawValue}&rdquo;
+            </p>
+          )}
+        </td>
+
+        {/* Value */}
+        <td className="px-2 py-1.5">
+          {isMissing ? (
+            <span className="text-[11px] font-medium text-red-500">
+              Not provided
+            </span>
+          ) : (
+            <>
+              <span className="font-mono text-[11px] font-semibold text-indigo-900">
+                {String(meta?.value ?? field.detail)}
+              </span>
+              {fc?.interpretation && (
+                <p className="text-[9px] leading-tight text-gray-400">
+                  {'\u2192'} {fc.interpretation}
+                </p>
+              )}
+              {meta?.resolutionStrategy && (
+                <p className="text-[9px] text-violet-400">
+                  needs {meta.resolutionStrategy} resolution
+                </p>
+              )}
+            </>
+          )}
+        </td>
+
+        {/* Confidence */}
+        <td className="py-1.5 pl-2 pr-2.5">
+          {pct !== null ? (
+            <div className="flex items-center justify-end gap-1.5">
+              <div
+                className={`h-1.5 w-12 overflow-hidden rounded-full ${trackColor}`}
+              >
+                <div
+                  className={`h-full rounded-full transition-all ${barColor}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span
+                className={`min-w-[26px] text-right text-[10px] font-semibold tabular-nums ${badgeText}`}
+              >
+                {pct}%
+              </span>
+            </div>
+          ) : (
+            <span className="block text-right text-[10px] text-gray-300">
+              {'\u2014'}
+            </span>
+          )}
+        </td>
+      </tr>
+
+      {/* Expandable alternatives */}
+      {hasAlternatives && expanded && (
+        <tr>
+          <td colSpan={4} className="pb-1.5 pl-8 pr-2.5 pt-0">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[9px] font-medium uppercase tracking-wide text-amber-500">
+                Alternatives:
+              </span>
+              {fc!.alternatives!.map((alt) => (
+                <span
+                  key={alt}
+                  className="rounded-md bg-amber-100/60 px-1.5 py-0.5 text-[9px] text-amber-700 ring-1 ring-inset ring-amber-200/50"
+                >
+                  {alt}
+                </span>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -808,13 +1122,26 @@ export function PipelineProgress({
           const parsedFieldItems = items.filter(
             (p) => p.entityType === 'parsedFields',
           );
+          const validationItems = items.filter(
+            (p) => p.entityType === 'validationField',
+          );
           const traceItems = items.filter((p) => p.entityType === 'apiTrace');
           const entityItems = items.filter(
             (p) =>
               p.entityType === 'purchaseOrder' ||
               p.entityType === 'purchaseOrderItem',
           );
-          const simpleItems = items.filter((p) => !p.entityType);
+          const simpleItems = items.filter(
+            (p) =>
+              !p.entityType ||
+              ![
+                'parsedFields',
+                'validationField',
+                'apiTrace',
+                'purchaseOrder',
+                'purchaseOrderItem',
+              ].includes(p.entityType),
+          );
 
           return (
             <div key={key}>
@@ -911,6 +1238,13 @@ export function PipelineProgress({
                   {parsedFieldItems.map((p) => (
                     <ParsedFieldsTable key={p.item} item={p} />
                   ))}
+                </div>
+              )}
+
+              {/* Validation fields (intent requirement checks) */}
+              {validationItems.length > 0 && (
+                <div className="ml-7">
+                  <ValidationTable items={validationItems} />
                 </div>
               )}
 

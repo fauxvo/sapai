@@ -61,6 +61,7 @@ export interface ParsedIntent {
   intentId: string;
   confidence: number;
   extractedFields: Record<string, unknown>;
+  fieldConfidence?: Record<string, FieldConfidence>;
   missingRequiredFields?: string[];
   ambiguousFields?: AmbiguousField[];
 }
