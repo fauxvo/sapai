@@ -32,8 +32,16 @@ const mockPurOrdAccountAssignmentApi = {
   },
 };
 
+// Mock for PO existence check (separate request builder)
+const mockPoCheckGetByKey = vi.fn();
+const mockPurchaseOrderApi = {
+  requestBuilder: () => ({ getByKey: mockPoCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {} },
+};
+
 vi.mock('../../generated/purchase-order-service/service.js', () => ({
   purchaseOrderService: () => ({
+    purchaseOrderApi: mockPurchaseOrderApi,
     purOrdAccountAssignmentApi: mockPurOrdAccountAssignmentApi,
   }),
 }));
@@ -71,6 +79,14 @@ describe('PurchaseOrderAccountAssignmentService', () => {
           costCenter: '0000001000',
         },
       ];
+      // Mock PO existence check
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi
+            .fn()
+            .mockResolvedValue({ purchaseOrder: '4500000001' }),
+        }),
+      });
       const filterMock = vi.fn().mockReturnValue({
         execute: vi.fn().mockResolvedValue(mockAssignments),
       });
@@ -82,6 +98,33 @@ describe('PurchaseOrderAccountAssignmentService', () => {
       if (!result.success) return;
       expect(result.data).toHaveLength(1);
       expect(result.data[0].accountAssignmentNumber).toBe('01');
+    });
+
+    it('returns 404 when parent PO does not exist', async () => {
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value: "Resource not found for segment 'A_PurchaseOrderType'",
+            },
+          },
+        },
+      };
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockRejectedValue(sapError),
+        }),
+      });
+
+      const result = await service.getAccountAssignments('4500005678', '10');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
+      expect(mockGetAll).not.toHaveBeenCalled();
     });
   });
 

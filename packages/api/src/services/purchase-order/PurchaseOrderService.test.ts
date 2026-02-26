@@ -261,6 +261,14 @@ describe('PurchaseOrderService', () => {
         { purchaseOrder: '4500000001', purchaseOrderItem: '10' },
         { purchaseOrder: '4500000001', purchaseOrderItem: '20' },
       ];
+      // Mock PO existence check (purchaseOrderApi.getByKey → select → execute)
+      const poSelectMock = vi.fn().mockReturnValue({
+        execute: vi
+          .fn()
+          .mockResolvedValue({ purchaseOrder: '4500000001' }),
+      });
+      mockGetByKey.mockReturnValue({ select: poSelectMock });
+      // Mock items fetch (purchaseOrderItemApi.getAll → filter → execute)
       const filterMock = vi.fn().mockReturnValue({
         execute: vi.fn().mockResolvedValue(mockItems),
       });
@@ -271,6 +279,35 @@ describe('PurchaseOrderService', () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.data).toHaveLength(2);
+    });
+
+    it('returns 404 when parent PO does not exist', async () => {
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value:
+                "Resource not found for segment 'A_PurchaseOrderType'",
+            },
+          },
+        },
+      };
+      const poSelectMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockRejectedValue(sapError),
+      });
+      mockGetByKey.mockReturnValue({ select: poSelectMock });
+
+      const result = await service.getItems('4500005678');
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
+      expect(result.error.code).toBe('/IWBEP/CM_MGW_RT/020');
+      // Should NOT have called getAll for items
+      expect(mockGetAll).not.toHaveBeenCalled();
     });
   });
 

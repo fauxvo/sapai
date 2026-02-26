@@ -14,6 +14,20 @@ export class PurchaseOrderPricingElementService extends BaseService {
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurOrdPricingElement[]>> {
+    // Verify parent PO exists first — getAll().filter() silently returns []
+    // for non-existent POs instead of a 404 error.
+    const { purchaseOrderApi } = this.svc;
+    const poCheck = await this.execute(() =>
+      purchaseOrderApi
+        .requestBuilder()
+        .getByKey(poId)
+        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+        .execute(this.destination),
+    );
+    if (!poCheck.success) {
+      return poCheck as ServiceResult<PurOrdPricingElement[]>;
+    }
+
     return this.execute(() => {
       const { purOrdPricingElementApi } = this.svc;
       const { schema } = purOrdPricingElementApi;

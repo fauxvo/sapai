@@ -25,6 +25,20 @@ export class PurchaseOrderScheduleLineService extends BaseService {
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurchaseOrderScheduleLine[]>> {
+    // Verify parent PO exists first — getAll().filter() silently returns []
+    // for non-existent POs instead of a 404 error.
+    const { purchaseOrderApi } = this.svc;
+    const poCheck = await this.execute(() =>
+      purchaseOrderApi
+        .requestBuilder()
+        .getByKey(poId)
+        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+        .execute(this.destination),
+    );
+    if (!poCheck.success) {
+      return poCheck as ServiceResult<PurchaseOrderScheduleLine[]>;
+    }
+
     return this.execute(() => {
       const { purchaseOrderScheduleLineApi } = this.svc;
       const { schema } = purchaseOrderScheduleLineApi;
@@ -183,6 +197,20 @@ export class PurchaseOrderScheduleLineService extends BaseService {
     itemId: string,
     lineId: string,
   ): Promise<ServiceResult<PoSubcontractingComponent[]>> {
+    // Verify parent PO exists first — getAll().filter() silently returns []
+    // for non-existent POs instead of a 404 error.
+    const { purchaseOrderApi } = this.svc;
+    const poCheck = await this.execute(() =>
+      purchaseOrderApi
+        .requestBuilder()
+        .getByKey(poId)
+        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+        .execute(this.destination),
+    );
+    if (!poCheck.success) {
+      return poCheck as ServiceResult<PoSubcontractingComponent[]>;
+    }
+
     return this.execute(() => {
       const { poSubcontractingComponentApi } = this.svc;
       const { schema } = poSubcontractingComponentApi;
