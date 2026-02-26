@@ -4,6 +4,7 @@ import {
   getRun,
   createRun,
   updateRun,
+  deleteRun,
   continueRun,
   approveRun,
   rejectRun,
@@ -77,6 +78,20 @@ export function useUpdateRun() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: ['run', data.run.id] });
+    },
+  });
+}
+
+export function useDeleteRun() {
+  const qc = useQueryClient();
+  const getToken = useAuthToken();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const t = await getToken();
+      return deleteRun(id, t);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
     },
   });
 }

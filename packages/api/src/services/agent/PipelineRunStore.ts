@@ -307,6 +307,11 @@ export class PipelineRunStore {
     });
   }
 
+  async deleteRun(id: string): Promise<void> {
+    log.debug('deleteRun', { id });
+    await this.db.delete(pipelineRuns).where(eq(pipelineRuns.id, id));
+  }
+
   async getStage(
     runId: string,
     stageName: PipelineStageName,

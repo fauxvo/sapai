@@ -212,6 +212,29 @@ runsApp.patch('/runs/:id', async (c) => {
   }
 });
 
+// DELETE /runs/:id — Delete a run and its stages
+runsApp.delete('/runs/:id', async (c) => {
+  const id = c.req.param('id');
+
+  try {
+    const existing = await pipelineRunStore.getById(id);
+    if (!existing || !isOwner(existing, getAuth(c))) {
+      return c.json({ success: false, error: 'Run not found' }, 404);
+    }
+
+    await pipelineRunStore.deleteRun(id);
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json(
+      {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      },
+      500,
+    );
+  }
+});
+
 // POST /runs/:id/continue — Continue paused run
 runsApp.post('/runs/:id/continue', async (c) => {
   const id = c.req.param('id');

@@ -195,6 +195,13 @@ export async function updateRun(
   });
 }
 
+export async function deleteRun(id: string, token?: string): Promise<void> {
+  await apiRequest(`/api/agent/runs/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export async function rejectRun(
   id: string,
   token?: string,

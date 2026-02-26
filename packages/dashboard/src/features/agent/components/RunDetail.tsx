@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   useRun,
   useCreateRun,
   useUpdateRun,
+  useDeleteRun,
   useContinueRun,
   useApproveRun,
   useRejectRun,
@@ -167,7 +168,9 @@ function extractPlan(stages: PipelineStageRecord[]): ExecutionPlan | null {
 
 export function RunDetail({ runId }: RunDetailProps) {
   const { data, isLoading, error } = useRun(runId);
+  const navigate = useNavigate();
   const updateRunMutation = useUpdateRun();
+  const deleteRunMutation = useDeleteRun();
   const continueRunMutation = useContinueRun();
   const approveRunMutation = useApproveRun();
   const rejectRunMutation = useRejectRun();
@@ -223,7 +226,25 @@ export function RunDetail({ runId }: RunDetailProps) {
   };
 
   const handleRetry = () => {
-    retryRunMutation.mutate({ message: run.inputMessage, mode: run.mode });
+    retryRunMutation.mutate(
+      {
+        message: run.inputMessage,
+        name: run.name ?? undefined,
+        mode: run.mode,
+      },
+      {
+        onSuccess: (data) => {
+          navigate({ to: '/agent/run/$id', params: { id: data.run.id } });
+        },
+      },
+    );
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm('Delete this run? This cannot be undone.')) return;
+    deleteRunMutation.mutate(runId, {
+      onSuccess: () => navigate({ to: '/agent' }),
+    });
   };
 
   const isActionPending =
@@ -458,6 +479,17 @@ export function RunDetail({ runId }: RunDetailProps) {
           </pre>
         </div>
       ) : null}
+
+      {/* Delete */}
+      <div className="mt-8 border-t border-gray-200 pt-4">
+        <button
+          onClick={handleDelete}
+          disabled={deleteRunMutation.isPending}
+          className="text-sm text-gray-400 hover:text-red-600 disabled:opacity-50"
+        >
+          {deleteRunMutation.isPending ? 'Deleting...' : 'Delete this run'}
+        </button>
+      </div>
     </div>
   );
 }
