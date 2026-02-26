@@ -58,8 +58,13 @@ function orchestratorErrorResponse(err: unknown) {
 
 const CreateRunBody = z.object({
   message: z.string().min(1),
+  name: z.string().max(200).optional(),
   mode: z.enum(['auto', 'step']).default('auto'),
   conversationId: z.string().optional(),
+});
+
+const UpdateRunBody = z.object({
+  name: z.string().max(200).nullable().optional(),
 });
 
 export const runsApp = new OpenAPIHono();
@@ -98,6 +103,7 @@ runsApp.post('/runs', async (c) => {
   try {
     const runWithStages = await orchestrator.startRun({
       message: body.message,
+      name: body.name,
       mode: body.mode,
       conversationId: body.conversationId,
       userId: auth?.userId,
@@ -159,6 +165,42 @@ runsApp.get('/runs/:id', async (c) => {
     }
 
     return c.json({ success: true, data: runWithStages });
+  } catch (err) {
+    return c.json(
+      {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+      },
+      500,
+    );
+  }
+});
+
+// PATCH /runs/:id — Update run (e.g. rename)
+runsApp.patch('/runs/:id', async (c) => {
+  const id = c.req.param('id');
+  const raw = await c.req.json().catch(() => null);
+  const parsed = UpdateRunBody.safeParse(raw);
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        success: false,
+        error: parsed.error.issues.map((i) => i.message).join(', '),
+      },
+      400,
+    );
+  }
+
+  try {
+    const existing = await pipelineRunStore.getRunWithStages(id);
+    if (!existing || !isOwner(existing.run, getAuth(c))) {
+      return c.json({ success: false, error: 'Run not found' }, 404);
+    }
+
+    await pipelineRunStore.updateRun(id, parsed.data);
+    const updated = await pipelineRunStore.getRunWithStages(id);
+    return c.json({ success: true, data: updated });
   } catch (err) {
     return c.json(
       {

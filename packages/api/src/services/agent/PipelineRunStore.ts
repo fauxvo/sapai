@@ -29,6 +29,7 @@ export class PipelineRunStore {
 
   async createRun(params: {
     inputMessage: string;
+    name?: string;
     mode?: RunMode;
     conversationId?: string;
     userId?: string;
@@ -76,6 +77,7 @@ export class PipelineRunStore {
       tx.insert(pipelineRuns)
         .values({
           id: runId,
+          name: params.name ?? null,
           conversationId: params.conversationId ?? null,
           inputMessage: params.inputMessage,
           status: 'running',
@@ -100,6 +102,7 @@ export class PipelineRunStore {
 
     const run = this.toRun({
       id: runId,
+      name: params.name ?? null,
       conversationId: params.conversationId ?? null,
       inputMessage: params.inputMessage,
       status: 'running',
@@ -183,6 +186,7 @@ export class PipelineRunStore {
   async updateRun(
     id: string,
     updates: Partial<{
+      name: string | null;
       status: PipelineRunStatus;
       currentStage: PipelineStageName | null;
       result: unknown;
@@ -194,6 +198,7 @@ export class PipelineRunStore {
   ): Promise<void> {
     log.debug('updateRun', { id, updates: Object.keys(updates) });
     const setValues: Record<string, unknown> = {};
+    if (updates.name !== undefined) setValues.name = updates.name;
     if (updates.status !== undefined) setValues.status = updates.status;
     if (updates.currentStage !== undefined)
       setValues.currentStage = updates.currentStage;
@@ -353,6 +358,7 @@ export class PipelineRunStore {
   private toRun(row: typeof pipelineRuns.$inferSelect): PipelineRun {
     return {
       id: row.id,
+      name: row.name,
       conversationId: row.conversationId,
       inputMessage: row.inputMessage,
       status: row.status as PipelineRun['status'],

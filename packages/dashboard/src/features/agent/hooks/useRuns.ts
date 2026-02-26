@@ -3,6 +3,7 @@ import {
   listRuns,
   getRun,
   createRun,
+  updateRun,
   continueRun,
   approveRun,
   rejectRun,
@@ -51,12 +52,31 @@ export function useCreateRun() {
   const qc = useQueryClient();
   const getToken = useAuthToken();
   return useMutation({
-    mutationFn: async (body: { message: string; mode?: RunMode }) => {
+    mutationFn: async (body: {
+      message: string;
+      name?: string;
+      mode?: RunMode;
+    }) => {
       const t = await getToken();
       return createRun(body, t);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['runs'] });
+    },
+  });
+}
+
+export function useUpdateRun() {
+  const qc = useQueryClient();
+  const getToken = useAuthToken();
+  return useMutation({
+    mutationFn: async (params: { id: string; name?: string | null }) => {
+      const t = await getToken();
+      return updateRun(params.id, { name: params.name }, t);
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['run', data.run.id] });
     },
   });
 }

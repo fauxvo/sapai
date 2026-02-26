@@ -711,6 +711,7 @@ export class AgentOrchestrator {
 
   async startRun(params: {
     message: string;
+    name?: string;
     mode?: RunMode;
     conversationId?: string;
     userId?: string;
@@ -749,6 +750,7 @@ export class AgentOrchestrator {
     // Create the pipeline run (conversationId is set during creation)
     const runWithStages = await this.deps.pipelineRunStore.createRun({
       inputMessage: message,
+      name: params.name,
       mode,
       conversationId,
       userId,

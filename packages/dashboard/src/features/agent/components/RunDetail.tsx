@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   useRun,
   useCreateRun,
+  useUpdateRun,
   useContinueRun,
   useApproveRun,
   useRejectRun,
@@ -165,10 +167,13 @@ function extractPlan(stages: PipelineStageRecord[]): ExecutionPlan | null {
 
 export function RunDetail({ runId }: RunDetailProps) {
   const { data, isLoading, error } = useRun(runId);
+  const updateRunMutation = useUpdateRun();
   const continueRunMutation = useContinueRun();
   const approveRunMutation = useApproveRun();
   const rejectRunMutation = useRejectRun();
   const retryRunMutation = useCreateRun();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState('');
 
   const run = data?.run ?? null;
   const stages = data?.stages ?? [];
@@ -238,6 +243,77 @@ export function RunDetail({ runId }: RunDetailProps) {
 
       {/* Header */}
       <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5">
+        {/* Name row */}
+        <div className="mb-3">
+          {isEditingName ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = editName.trim();
+                updateRunMutation.mutate(
+                  { id: runId, name: trimmed || null },
+                  { onSuccess: () => setIsEditingName(false) },
+                );
+              }}
+            >
+              <input
+                autoFocus
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Run name"
+                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={updateRunMutation.isPending}
+                className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingName(false)}
+                className="rounded px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditName(run.name ?? '');
+                setIsEditingName(true);
+              }}
+              className="group flex items-center gap-2 text-left"
+              title="Click to edit name"
+            >
+              <span className="text-lg font-semibold text-gray-900">
+                {run.name ?? (
+                  <span className="text-sm font-normal italic text-gray-400">
+                    Unnamed run
+                  </span>
+                )}
+              </span>
+              <svg
+                className="h-3.5 w-3.5 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge status={run.status} />
           <span

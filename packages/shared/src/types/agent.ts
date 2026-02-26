@@ -285,6 +285,7 @@ export interface PipelineProgressItem {
 
 export interface PipelineRun {
   id: string;
+  name: string | null;
   conversationId: string | null;
   inputMessage: string;
   status: PipelineRunStatus;
@@ -323,6 +324,7 @@ export interface RunWithStages {
 
 export interface CreateRunRequest {
   message: string;
+  name?: string;
   mode?: RunMode;
   conversationId?: string;
 }

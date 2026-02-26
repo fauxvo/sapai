@@ -90,6 +90,7 @@ function formatTime(iso: string): string {
 export function RunList() {
   const navigate = useNavigate();
   const [input, setInput] = useState('');
+  const [name, setName] = useState('');
   const [mode, setMode] = useState<RunMode>('auto');
   const { data: runs = [], isLoading, error } = useRuns();
   const createRun = useCreateRun();
@@ -99,9 +100,15 @@ export function RunList() {
     const message = input.trim();
     if (!message || createRun.isPending) return;
 
+    const runName = name.trim() || undefined;
     try {
-      const result = await createRun.mutateAsync({ message, mode });
+      const result = await createRun.mutateAsync({
+        message,
+        name: runName,
+        mode,
+      });
       setInput('');
+      setName('');
       navigate({
         to: '/agent/run/$id',
         params: { id: result.run.id },
@@ -123,6 +130,13 @@ export function RunList() {
           New Pipeline Run
         </h2>
         <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Run name (optional)"
+            className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -196,7 +210,7 @@ export function RunList() {
             <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
                 <th className="px-5 py-2.5">Status</th>
-                <th className="px-5 py-2.5">Input</th>
+                <th className="px-5 py-2.5">Name / Input</th>
                 <th className="px-5 py-2.5">Mode</th>
                 <th className="px-5 py-2.5">Duration</th>
                 <th className="px-5 py-2.5">Created</th>
@@ -212,8 +226,21 @@ export function RunList() {
                   <td className="px-5 py-3">
                     <StatusBadge status={run.status} />
                   </td>
-                  <td className="max-w-[300px] truncate px-5 py-3 text-gray-700">
-                    {run.inputMessage}
+                  <td className="max-w-[300px] px-5 py-3">
+                    {run.name ? (
+                      <div>
+                        <div className="truncate font-medium text-gray-900">
+                          {run.name}
+                        </div>
+                        <div className="truncate text-xs text-gray-500">
+                          {run.inputMessage}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="truncate text-gray-700">
+                        {run.inputMessage}
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3">
                     <span

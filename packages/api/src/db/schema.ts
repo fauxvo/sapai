@@ -56,6 +56,7 @@ export const pipelineRuns = sqliteTable(
   'pipeline_runs',
   {
     id: text('id').primaryKey(),
+    name: text('name'),
     conversationId: text('conversation_id').references(() => conversations.id, {
       onDelete: 'set null',
     }),

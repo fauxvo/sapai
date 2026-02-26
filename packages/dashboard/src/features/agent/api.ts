@@ -129,7 +129,12 @@ export async function getIntents(token?: string): Promise<IntentDefinition[]> {
 // --- Pipeline Run endpoints ---
 
 export async function createRun(
-  body: { message: string; mode?: RunMode; conversationId?: string },
+  body: {
+    message: string;
+    name?: string;
+    mode?: RunMode;
+    conversationId?: string;
+  },
   token?: string,
 ): Promise<RunWithStages> {
   return apiRequest('/api/agent/runs', {
@@ -174,6 +179,18 @@ export async function approveRun(
 ): Promise<RunWithStages> {
   return apiRequest(`/api/agent/runs/${id}/approve`, {
     method: 'POST',
+    token,
+  });
+}
+
+export async function updateRun(
+  id: string,
+  body: { name?: string | null },
+  token?: string,
+): Promise<RunWithStages> {
+  return apiRequest(`/api/agent/runs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
     token,
   });
 }
