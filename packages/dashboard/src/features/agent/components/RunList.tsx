@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useRuns, useCreateRun, useDeleteRun } from '../hooks/useRuns';
 import { StatusBadge, formatDuration } from './run-utils';
+import { ConfirmModal } from '../../../components/ConfirmModal';
 import type { PipelineRun, RunMode } from '../types';
 
 function formatTime(iso: string): string {
@@ -21,6 +22,7 @@ export function RunList() {
   const { data: runs = [], isLoading, error } = useRuns();
   const createRun = useCreateRun();
   const deleteRunMutation = useDeleteRun();
+  const [deleteTarget, setDeleteTarget] = useState<PipelineRun | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,13 +194,7 @@ export function RunList() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (
-                          window.confirm(
-                            'Delete this run? This cannot be undone.',
-                          )
-                        ) {
-                          deleteRunMutation.mutate(run.id);
-                        }
+                        setDeleteTarget(run);
                       }}
                       className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
                       title="Delete run"
@@ -224,6 +220,23 @@ export function RunList() {
           </table>
         )}
       </div>
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Delete pipeline run"
+        message={`Delete "${deleteTarget?.name || deleteTarget?.inputMessage || 'this run'}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteRunMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteRunMutation.mutate(deleteTarget.id, {
+              onSuccess: () => setDeleteTarget(null),
+            });
+          }
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
