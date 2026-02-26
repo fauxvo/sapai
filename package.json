@@ -10,7 +10,7 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo run build && changeset publish"
+    "release": "changeset version && git add -A && git commit -m 'chore: version packages'"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.2",

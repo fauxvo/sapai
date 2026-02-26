@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuditHistory } from '../hooks/useAuditHistory';
 import { useIntents } from '../hooks/useAgent';
 import type { AuditLogEntry, IntentDefinition } from '@sapai/shared';
@@ -36,7 +36,10 @@ export function AuditLog() {
     limit: 100,
   });
   const { data: intents = [] } = useIntents();
-  const intentMap = new Map(intents.map((i) => [i.id, i]));
+  const intentMap = useMemo(
+    () => new Map(intents.map((i) => [i.id, i])),
+    [intents],
+  );
 
   if (isLoading) {
     return (
@@ -63,6 +66,7 @@ export function AuditLog() {
         <div className="flex gap-1.5">
           <button
             onClick={() => setPhaseFilter(undefined)}
+            aria-pressed={!phaseFilter}
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
               !phaseFilter
                 ? 'bg-gray-900 text-white'
@@ -77,6 +81,7 @@ export function AuditLog() {
               onClick={() =>
                 setPhaseFilter(phaseFilter === phase ? undefined : phase)
               }
+              aria-pressed={phaseFilter === phase}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                 phaseFilter === phase
                   ? 'bg-gray-900 text-white'
@@ -505,7 +510,15 @@ function AuditRow({
     <>
       <tr
         className="cursor-pointer transition-colors hover:bg-gray-50"
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
       >
         <td className="whitespace-nowrap px-4 py-2.5 text-gray-600">
           {new Date(entry.timestamp).toLocaleString([], {
