@@ -687,6 +687,131 @@ function ValidationFieldRow({
   );
 }
 
+function formatSapErrorExplanation(meta: Record<string, unknown>): string {
+  const code = typeof meta.errorCode === 'string' ? meta.errorCode : '';
+  const status = typeof meta.httpStatus === 'number' ? meta.httpStatus : 0;
+  const msg = typeof meta.error === 'string' ? meta.error : '';
+
+  // Translate well-known SAP error codes into plain English
+  if (code === '/IWBEP/CM_MGW_RT/020' || msg.includes('Resource not found')) {
+    return 'SAP confirmed this purchase order number does not exist in the system. Double-check the PO number for typos or verify it was created in the connected SAP client.';
+  }
+  if (code === 'SY/530') {
+    return 'SAP could not locate the requested resource. The PO may have been deleted or the number may be incorrect.';
+  }
+  if (code === 'NETWORK_ERROR' || code === 'UNKNOWN_ERROR') {
+    return 'Could not reach SAP to verify this PO. This may be a temporary connectivity issue — try again shortly.';
+  }
+  if (status === 401 || status === 403) {
+    return 'The SAP service user does not have permission to look up this purchase order. Contact your SAP administrator.';
+  }
+  if (status === 503 || status === 502 || status === 504) {
+    return 'SAP is temporarily unavailable. The system may be under maintenance — try again in a few minutes.';
+  }
+  if (msg) {
+    return `SAP returned an error while verifying this PO: "${msg}"`;
+  }
+  return 'The purchase order could not be verified. Check that the PO number is correct and exists in the connected SAP system.';
+}
+
+function formatSapErrorMessage(meta: Record<string, unknown>): string {
+  if (
+    typeof meta.error === 'object' &&
+    meta.error !== null &&
+    'message' in (meta.error as Record<string, unknown>)
+  ) {
+    return String((meta.error as Record<string, string>).message);
+  }
+  return String(meta.error);
+}
+
+function PoNotFoundCard({ item }: { item: ProgressItem }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const meta = item.metadata as Record<string, unknown> | undefined;
+  const hasError = meta?.error != null;
+  const explanation = meta
+    ? formatSapErrorExplanation(meta)
+    : 'The purchase order could not be verified. Check that the PO number is correct and exists in the connected SAP system.';
+
+  return (
+    <div className="rounded border border-red-200 bg-red-50/50">
+      <div className="flex items-center justify-between border-b border-red-200/60 px-2.5 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600">
+          PO Validation Failed
+        </span>
+        <span className="flex items-center gap-1 text-[10px] font-medium text-red-500">
+          <svg
+            className="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+            />
+          </svg>
+          Not Found
+        </span>
+      </div>
+      <div className="px-2.5 py-2">
+        <p className="text-xs font-medium text-red-700">
+          PO {item.originalValue} does not exist in SAP
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-red-600/80">
+          {explanation}
+        </p>
+        {hasError && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowDetails((v) => !v)}
+              className="flex items-center gap-1 text-[10px] font-medium text-red-400 transition-colors hover:text-red-500"
+            >
+              <svg
+                className={`h-3 w-3 transition-transform ${showDetails ? 'rotate-90' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                />
+              </svg>
+              Technical details
+            </button>
+            {showDetails && meta && (
+              <div className="mt-1.5 rounded bg-red-100/60 px-2 py-1.5 font-mono text-[9px] leading-relaxed text-red-500">
+                <div>
+                  <span className="text-red-400">Message: </span>
+                  {formatSapErrorMessage(meta)}
+                </div>
+                {meta.errorCode != null && (
+                  <div>
+                    <span className="text-red-400">SAP Code: </span>
+                    {String(meta.errorCode)}
+                  </div>
+                )}
+                {meta.httpStatus != null && (
+                  <div>
+                    <span className="text-red-400">HTTP Status: </span>
+                    {String(meta.httpStatus)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function POValidationCard({ item }: { item: ProgressItem }) {
   const poHeader = (item.metadata?.poHeader ?? item.metadata) as
     | POHeaderMeta
@@ -745,54 +870,7 @@ function POValidationCard({ item }: { item: ProgressItem }) {
           <span className="text-xs text-blue-600">Querying SAP...</span>
         </div>
       ) : (
-        <div className="rounded border border-red-200 bg-red-50/50">
-          <div className="flex items-center justify-between border-b border-red-200/60 px-2.5 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600">
-              PO Validation Failed
-            </span>
-            <span className="flex items-center gap-1 text-[10px] font-medium text-red-500">
-              <svg
-                className="h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-                />
-              </svg>
-              Not Found
-            </span>
-          </div>
-          <div className="px-2.5 py-2">
-            <p className="text-xs font-medium text-red-700">
-              PO {item.originalValue} does not exist in SAP
-            </p>
-            <p className="mt-0.5 text-[10px] text-red-500/80">
-              The purchase order number could not be verified. Check that the PO
-              number is correct and exists in the connected SAP system.
-            </p>
-            {item.metadata?.error != null && (
-              <p className="mt-1 font-mono text-[9px] text-red-400">
-                {typeof item.metadata.error === 'object' &&
-                item.metadata.error !== null &&
-                'message' in (item.metadata.error as Record<string, unknown>)
-                  ? String(
-                      (item.metadata.error as Record<string, string>).message,
-                    )
-                  : String(item.metadata.error)}
-                {item.metadata.errorCode != null && (
-                  <span className="ml-1 text-red-300">
-                    ({String(item.metadata.errorCode)})
-                  </span>
-                )}
-              </p>
-            )}
-          </div>
-        </div>
+        <PoNotFoundCard item={item} />
       )}
     </div>
   );
