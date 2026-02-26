@@ -1378,10 +1378,19 @@ export class AgentOrchestrator {
                     : 'itemIdentifier';
                 const fc = r.intent.fieldConfidence?.[fieldName];
 
+                // Build a descriptive detail string
+                const isNotFound =
+                  e.confidence === 'low' && e.metadata?.exists === false;
+                const detail = isNotFound
+                  ? e.resolvedLabel // e.g. "PO 4500005678 not found in SAP"
+                  : e.resolvedValue
+                    ? `${e.originalValue} \u2192 ${e.resolvedValue}`
+                    : e.resolvedLabel;
+
                 progressItems.push({
                   item: e.resolvedLabel,
-                  detail: `${e.originalValue} \u2192 ${e.resolvedValue}`,
-                  status: 'done' as const,
+                  detail,
+                  status: isNotFound ? ('failed' as const) : ('done' as const),
                   entityType: e.entityType, // 'purchaseOrder' | 'purchaseOrderItem'
                   matchType: e.matchType,
                   confidence: e.confidence,

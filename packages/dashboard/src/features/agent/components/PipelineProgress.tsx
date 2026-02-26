@@ -746,21 +746,40 @@ function POValidationCard({ item }: { item: ProgressItem }) {
         </div>
       ) : (
         <div className="rounded border border-red-200 bg-red-50/50">
-          <div className="flex items-center gap-1.5 px-2.5 py-2">
-            <svg
-              className="h-3.5 w-3.5 flex-shrink-0 text-red-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
-              />
-            </svg>
-            <span className="text-xs text-red-700">{item.detail}</span>
+          <div className="flex items-center justify-between border-b border-red-200/60 px-2.5 py-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600">
+              PO Validation Failed
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-medium text-red-500">
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+                />
+              </svg>
+              Not Found
+            </span>
+          </div>
+          <div className="px-2.5 py-2">
+            <p className="text-xs font-medium text-red-700">
+              PO {item.originalValue} does not exist in SAP
+            </p>
+            <p className="mt-0.5 text-[10px] text-red-500/80">
+              The purchase order number could not be verified. Check that the PO
+              number is correct and exists in the connected SAP system.
+            </p>
+            {item.metadata?.error != null && (
+              <p className="mt-1 font-mono text-[9px] text-red-400">
+                {String(item.metadata.error)}
+              </p>
+            )}
           </div>
         </div>
       )}
