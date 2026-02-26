@@ -51,7 +51,15 @@ function createMockPOService(
       .mockResolvedValue(
         poExists
           ? { success: true, data: poData }
-          : { success: false, error: { message: 'Not found' } },
+          : {
+              success: false,
+              error: {
+                httpStatus: 404,
+                code: '/IWBEP/CM_MGW_RT/020',
+                message: 'Resource not found for the segment',
+                details: [],
+              },
+            },
       ),
     getItems: vi.fn().mockResolvedValue({
       success: true,
@@ -116,6 +124,11 @@ describe('EntityResolver', () => {
       expect(poEntity!.confidence).toBe('low');
       expect(poEntity!.resolvedLabel).toContain('not found');
       expect(poEntity!.metadata?.exists).toBe(false);
+      expect(poEntity!.metadata?.error).toBe(
+        'Resource not found for the segment',
+      );
+      expect(poEntity!.metadata?.errorCode).toBe('/IWBEP/CM_MGW_RT/020');
+      expect(poEntity!.metadata?.httpStatus).toBe(404);
     });
   });
 

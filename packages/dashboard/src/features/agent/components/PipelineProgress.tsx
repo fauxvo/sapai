@@ -777,7 +777,18 @@ function POValidationCard({ item }: { item: ProgressItem }) {
             </p>
             {item.metadata?.error != null && (
               <p className="mt-1 font-mono text-[9px] text-red-400">
-                {String(item.metadata.error)}
+                {typeof item.metadata.error === 'object' &&
+                item.metadata.error !== null &&
+                'message' in (item.metadata.error as Record<string, unknown>)
+                  ? String(
+                      (item.metadata.error as Record<string, string>).message,
+                    )
+                  : String(item.metadata.error)}
+                {item.metadata.errorCode != null && (
+                  <span className="ml-1 text-red-300">
+                    ({String(item.metadata.errorCode)})
+                  </span>
+                )}
               </p>
             )}
           </div>
