@@ -3,16 +3,14 @@ import { BigNumber } from 'bignumber.js';
 import moment from 'moment';
 import { purchaseOrderService } from '../../generated/purchase-order-service/service.js';
 import type { PurOrdAccountAssignment } from '../../generated/purchase-order-service/PurOrdAccountAssignment.js';
-import { BaseService } from '../base/BaseService.js';
+import { PurchaseOrderBaseService } from '../base/PurchaseOrderBaseService.js';
 import type { ServiceResult } from '../base/types.js';
 import type {
   CreateAccountAssignmentInput,
   UpdateAccountAssignmentInput,
 } from './types.js';
 
-export class PurchaseOrderAccountAssignmentService extends BaseService {
-  // Safe as singleton: purchaseOrderService() returns stateless API accessors.
-  // CSRF tokens and ETags are managed per-request by the SDK, not cached here.
+export class PurchaseOrderAccountAssignmentService extends PurchaseOrderBaseService {
   private readonly svc = purchaseOrderService();
 
   async getAccountAssignments(
@@ -31,19 +29,16 @@ export class PurchaseOrderAccountAssignmentService extends BaseService {
         .execute(this.destination);
     });
 
-    // Disambiguate: empty because PO has no items, or PO doesn't exist?
+    // Disambiguate: empty because no assignments, or PO/item doesn't exist?
     if (result.success && result.data.length === 0) {
-      const { purchaseOrderApi } = this.svc;
-      const poCheck = await this.execute(() =>
-        purchaseOrderApi
-          .requestBuilder()
-          .getByKey(poId)
-          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-          .execute(this.destination),
-      );
-      if (!poCheck.success) {
-        return poCheck as ServiceResult<PurOrdAccountAssignment[]>;
-      }
+      const error =
+        await this.verifyPoItemExists<PurOrdAccountAssignment[]>(
+          poId,
+          itemId,
+          this.svc.purchaseOrderApi,
+          this.svc.purchaseOrderItemApi,
+        );
+      if (error) return error;
     }
 
     return result;

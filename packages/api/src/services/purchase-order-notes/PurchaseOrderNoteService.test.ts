@@ -76,9 +76,17 @@ const mockPurchaseOrderApi = {
   schema: { PURCHASE_ORDER: {} },
 };
 
+// Mock for PO item existence check
+const mockItemCheckGetByKey = vi.fn();
+const mockPurchaseOrderItemApi = {
+  requestBuilder: () => ({ getByKey: mockItemCheckGetByKey }),
+  schema: { PURCHASE_ORDER: {}, PURCHASE_ORDER_ITEM: {} },
+};
+
 vi.mock('../../generated/purchase-order-service/service.js', () => ({
   purchaseOrderService: () => ({
     purchaseOrderApi: mockPurchaseOrderApi,
+    purchaseOrderItemApi: mockPurchaseOrderItemApi,
     purchaseOrderNoteApi: mockPurchaseOrderNoteApi,
     purchaseOrderItemNoteApi: mockPurchaseOrderItemNoteApi,
   }),

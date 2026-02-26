@@ -1,7 +1,7 @@
 import { purchaseOrderService } from '../../generated/purchase-order-service/service.js';
 import type { PurchaseOrderNote } from '../../generated/purchase-order-service/PurchaseOrderNote.js';
 import type { PurchaseOrderItemNote } from '../../generated/purchase-order-service/PurchaseOrderItemNote.js';
-import { BaseService } from '../base/BaseService.js';
+import { PurchaseOrderBaseService } from '../base/PurchaseOrderBaseService.js';
 import type { ServiceResult } from '../base/types.js';
 import type {
   CreatePONoteInput,
@@ -10,9 +10,7 @@ import type {
   UpdatePOItemNoteInput,
 } from './types.js';
 
-export class PurchaseOrderNoteService extends BaseService {
-  // Safe as singleton: purchaseOrderService() returns stateless API accessors.
-  // CSRF tokens and ETags are managed per-request by the SDK, not cached here.
+export class PurchaseOrderNoteService extends PurchaseOrderBaseService {
   private readonly svc = purchaseOrderService();
 
   // ── PO Header Notes ──────────────────────────────────────────────
@@ -29,17 +27,11 @@ export class PurchaseOrderNoteService extends BaseService {
 
     // Disambiguate: empty because PO has no notes, or PO doesn't exist?
     if (result.success && result.data.length === 0) {
-      const { purchaseOrderApi } = this.svc;
-      const poCheck = await this.execute(() =>
-        purchaseOrderApi
-          .requestBuilder()
-          .getByKey(poId)
-          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-          .execute(this.destination),
+      const error = await this.verifyPoExists<PurchaseOrderNote[]>(
+        poId,
+        this.svc.purchaseOrderApi,
       );
-      if (!poCheck.success) {
-        return poCheck as ServiceResult<PurchaseOrderNote[]>;
-      }
+      if (error) return error;
     }
 
     return result;
@@ -137,19 +129,16 @@ export class PurchaseOrderNoteService extends BaseService {
         .execute(this.destination);
     });
 
-    // Disambiguate: empty because PO has no item notes, or PO doesn't exist?
+    // Disambiguate: empty because no item notes, or PO/item doesn't exist?
     if (result.success && result.data.length === 0) {
-      const { purchaseOrderApi } = this.svc;
-      const poCheck = await this.execute(() =>
-        purchaseOrderApi
-          .requestBuilder()
-          .getByKey(poId)
-          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-          .execute(this.destination),
-      );
-      if (!poCheck.success) {
-        return poCheck as ServiceResult<PurchaseOrderItemNote[]>;
-      }
+      const error =
+        await this.verifyPoItemExists<PurchaseOrderItemNote[]>(
+          poId,
+          itemId,
+          this.svc.purchaseOrderApi,
+          this.svc.purchaseOrderItemApi,
+        );
+      if (error) return error;
     }
 
     return result;
