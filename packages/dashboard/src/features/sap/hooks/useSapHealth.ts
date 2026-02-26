@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuthToken } from '../../agent/hooks/useAuthToken';
 
 export interface SapHealthStatus {
   status: 'connected' | 'degraded' | 'error';
@@ -9,24 +10,43 @@ export interface SapHealthStatus {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
-const VALID_STATUSES = new Set<SapHealthStatus['status']>([
+const VALID_STATUSES: ReadonlySet<string> = new Set([
   'connected',
   'degraded',
   'error',
 ]);
 
-async function fetchSapHealth(): Promise<SapHealthStatus> {
-  const res = await fetch(`${API_BASE}/sap/health`);
-  let json: Record<string, unknown>;
+function isSapHealthStatus(json: unknown): json is SapHealthStatus {
+  if (typeof json !== 'object' || json === null) return false;
+  const obj = json as Record<string, unknown>;
+  return (
+    typeof obj.status === 'string' &&
+    VALID_STATUSES.has(obj.status) &&
+    (obj.authenticated === null || typeof obj.authenticated === 'boolean')
+  );
+}
+
+const ERROR_SENTINEL: SapHealthStatus = {
+  status: 'error',
+  authenticated: null,
+};
+
+async function fetchSapHealth(token?: string): Promise<SapHealthStatus> {
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/sap/health`, { headers });
+  let json: unknown;
   try {
     json = await res.json();
   } catch {
-    return { status: 'error', authenticated: null, message: 'Non-JSON response' };
+    return { ...ERROR_SENTINEL, message: 'Non-JSON response' };
   }
-  if (!json || !VALID_STATUSES.has(json.status as SapHealthStatus['status'])) {
-    return { status: 'error', authenticated: null, message: 'Unexpected response' };
+  if (!isSapHealthStatus(json)) {
+    return { ...ERROR_SENTINEL, message: 'Unexpected response' };
   }
-  return json as unknown as SapHealthStatus;
+  return json;
 }
 
 /**
@@ -36,9 +56,13 @@ async function fetchSapHealth(): Promise<SapHealthStatus> {
  * - Pauses automatically when the browser tab is not focused.
  */
 export function useSapHealth() {
+  const getToken = useAuthToken();
   return useQuery({
     queryKey: ['sap-health'],
-    queryFn: fetchSapHealth,
+    queryFn: async () => {
+      const t = await getToken();
+      return fetchSapHealth(t);
+    },
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === 'connected' ? 60_000 : 15_000;
