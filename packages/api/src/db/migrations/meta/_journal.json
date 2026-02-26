@@ -8,6 +8,20 @@
       "when": 1771962209989,
       "tag": "0000_tiny_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1772006400000,
+      "tag": "0001_add_pipeline_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772010000000,
+      "tag": "0002_add_run_name",
+      "breakpoints": true
     }
   ]
 }

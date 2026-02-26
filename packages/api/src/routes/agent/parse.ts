@@ -98,15 +98,13 @@ parseApp.openapi(parseRoute, async (c) => {
         conversationId: result.conversationId,
         messageId: result.messageId,
         parseResult: result.parseResult,
-        plan: result.type === 'plan_pending' || result.type === 'executed'
-          ? result.plan
-          : undefined,
-        executionResult: result.type === 'executed'
-          ? result.result
-          : undefined,
-        clarification: result.type === 'clarification'
-          ? result.clarification
-          : undefined,
+        plan:
+          result.type === 'plan_pending' || result.type === 'executed'
+            ? result.plan
+            : undefined,
+        executionResult: result.type === 'executed' ? result.result : undefined,
+        clarification:
+          result.type === 'clarification' ? result.clarification : undefined,
       },
     },
     HttpStatusCodes.OK,

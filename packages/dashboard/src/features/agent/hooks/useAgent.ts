@@ -7,9 +7,22 @@ import {
   createConversation,
   updateConversation,
   deleteConversation,
+  getIntents,
 } from '../api';
 import type { AgentParseRequest, AgentExecuteRequest } from '@sapai/shared';
 import { useAuthToken } from './useAuthToken';
+
+export function useIntents() {
+  const getToken = useAuthToken();
+  return useQuery({
+    queryKey: ['intents'],
+    queryFn: async () => {
+      const token = await getToken();
+      return getIntents(token);
+    },
+    staleTime: 5 * 60 * 1000, // intents rarely change
+  });
+}
 
 export function useConversations() {
   const getToken = useAuthToken();
@@ -38,9 +51,7 @@ export function useCreateConversation() {
   const queryClient = useQueryClient();
   const getToken = useAuthToken();
   return useMutation({
-    mutationFn: async (
-      body?: Parameters<typeof createConversation>[0],
-    ) => {
+    mutationFn: async (body?: Parameters<typeof createConversation>[0]) => {
       const token = await getToken();
       return createConversation(body, token);
     },

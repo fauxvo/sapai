@@ -34,6 +34,7 @@ export interface FieldDefinition {
 
 export interface IntentDefinition {
   id: string;
+  name: string;
   description: string;
   category: IntentCategory;
   confirmation: ConfirmationPolicy;
@@ -60,6 +61,7 @@ export interface ParsedIntent {
   intentId: string;
   confidence: number;
   extractedFields: Record<string, unknown>;
+  fieldConfidence?: Record<string, FieldConfidence>;
   missingRequiredFields?: string[];
   ambiguousFields?: AmbiguousField[];
 }
@@ -76,7 +78,40 @@ export interface ResolvedEntity {
   resolvedValue: string;
   resolvedLabel: string;
   confidence: ResolutionConfidence;
+  matchType?: string;
+  entityType?: string;
+  metadata?: Record<string, unknown>;
   candidates?: ResolvedEntity[];
+}
+
+// --- PO Summary types ---
+
+export interface POItemSummary {
+  itemNumber: string;
+  description: string;
+  material: string;
+  quantity: number;
+  unit: string;
+  netPrice: number;
+  currency: string;
+  plant: string;
+}
+
+export interface POHeaderSummary {
+  poNumber: string;
+  supplier: string;
+  companyCode: string;
+  orderType: string;
+  purchasingOrg: string;
+  purchasingGroup: string;
+  currency: string;
+  paymentTerms: string;
+  createdBy: string;
+  creationDate: string;
+  isDeleted: boolean;
+  releaseNotCompleted: boolean;
+  totalItems: number;
+  items: POItemSummary[];
 }
 
 // --- Execution Plans ---
@@ -190,4 +225,107 @@ export interface AgentExecuteRequest {
 export interface AgentExecuteResponse {
   planId: string;
   result: ExecutionResult;
+}
+
+// --- Pipeline Run Types ---
+
+export type PipelineRunStatus =
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'awaiting_approval'
+  | 'paused_at_parsing'
+  | 'paused_at_validating'
+  | 'paused_at_resolving'
+  | 'paused_at_planning'
+  | 'paused_at_executing';
+
+export type PipelineStageStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped';
+
+export type PipelineStageName =
+  | 'parsing'
+  | 'validating'
+  | 'resolving'
+  | 'planning'
+  | 'executing';
+
+export type RunMode = 'auto' | 'step';
+
+export interface PipelineRunCostEstimate {
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+  model: string;
+}
+
+export interface FieldConfidence {
+  confidence: number;
+  rawValue: string;
+  interpretation: string;
+  alternatives?: string[];
+}
+
+export interface PipelineProgressItem {
+  item: string;
+  detail: string;
+  status: 'running' | 'done' | 'failed';
+  entityType?: string;
+  matchType?: string;
+  confidence?: ResolutionConfidence;
+  originalValue?: string;
+  resolvedValue?: string;
+  metadata?: Record<string, unknown>;
+  parseConfidence?: FieldConfidence;
+  candidates?: ResolvedEntity[];
+}
+
+export interface PipelineRun {
+  id: string;
+  name: string | null;
+  conversationId: string | null;
+  inputMessage: string;
+  status: PipelineRunStatus;
+  mode: RunMode;
+  currentStage: PipelineStageName | null;
+  result: unknown | null;
+  error: string | null;
+  userId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  durationMs: number | null;
+}
+
+export interface PipelineStageRecord {
+  id: string;
+  runId: string;
+  stage: PipelineStageName;
+  status: PipelineStageStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  detail: string | null;
+  input: unknown | null;
+  output: unknown | null;
+  progressItems: PipelineProgressItem[];
+  error: string | null;
+  costEstimate: PipelineRunCostEstimate | null;
+  order: number;
+}
+
+export interface RunWithStages {
+  run: PipelineRun;
+  stages: PipelineStageRecord[];
+}
+
+export interface CreateRunRequest {
+  message: string;
+  name?: string;
+  mode?: RunMode;
+  conversationId?: string;
 }

@@ -24,9 +24,7 @@ const envSchema = z.object({
 
   // Environment
   NODE_ENV: z.string().default('development'),
-  LOG_LEVEL: z
-    .enum(['debug', 'info', 'warn', 'error'])
-    .optional(),
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
 
   // Database
   DB_PATH: z.string().default('./data/sapai.db'),

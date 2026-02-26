@@ -29,13 +29,23 @@ export async function apiRequest<T>(
   try {
     json = JSON.parse(text);
   } catch {
-    console.error(`[api-client] Non-JSON response from ${fullUrl}:`, text.slice(0, 500));
+    console.error(
+      `[api-client] Non-JSON response from ${fullUrl}:`,
+      text.slice(0, 500),
+    );
     throw new Error(`Non-JSON response: ${res.status} ${res.statusText}`);
   }
 
   if (!res.ok || json.success === false) {
-    const errorMsg = (json.error as string) ?? (json.message as string) ?? `Request failed: ${res.status}`;
-    console.error(`[api-client] Error from ${fullUrl}:`, { status: res.status, error: errorMsg, body: json });
+    const errorMsg =
+      (json.error as string) ??
+      (json.message as string) ??
+      `Request failed: ${res.status}`;
+    console.error(`[api-client] Error from ${fullUrl}:`, {
+      status: res.status,
+      error: errorMsg,
+      body: json,
+    });
     throw new Error(errorMsg);
   }
 

@@ -37,6 +37,7 @@ import { PlanBuilder } from '../services/agent/PlanBuilder.js';
 import { PlanStore } from '../services/agent/PlanStore.js';
 import { Executor } from '../services/agent/Executor.js';
 import { AuditLogger } from '../services/agent/AuditLogger.js';
+import { PipelineRunStore } from '../services/agent/PipelineRunStore.js';
 import { createLogger } from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,8 @@ describe('Agent Pipeline Integration (parse -> validate -> resolve -> plan -> ex
     executor = new Executor(mockPOService as any, auditLogger);
     const logger = createLogger('test');
 
+    const pipelineRunStore = new PipelineRunStore(db);
+
     orchestrator = new AgentOrchestrator({
       conversationStore,
       intentParser,
@@ -114,6 +117,7 @@ describe('Agent Pipeline Integration (parse -> validate -> resolve -> plan -> ex
       executor,
       auditLogger,
       logger,
+      pipelineRunStore,
     });
   });
 
@@ -324,7 +328,11 @@ describe('Agent Pipeline Integration (parse -> validate -> resolve -> plan -> ex
     });
 
     // Override the executor's internal poService.getById to throw
-    const executorPOService = (executor as unknown as { poService: ReturnType<typeof createMockPOService> }).poService;
+    const executorPOService = (
+      executor as unknown as {
+        poService: ReturnType<typeof createMockPOService>;
+      }
+    ).poService;
     executorPOService.getById.mockRejectedValue(new Error('Forbidden'));
 
     const result = await orchestrator.processMessage({
@@ -362,7 +370,11 @@ describe('Agent Pipeline Integration (parse -> validate -> resolve -> plan -> ex
       ],
     });
 
-    const executorPOService = (executor as unknown as { poService: ReturnType<typeof createMockPOService> }).poService;
+    const executorPOService = (
+      executor as unknown as {
+        poService: ReturnType<typeof createMockPOService>;
+      }
+    ).poService;
     executorPOService.getById.mockRejectedValue(
       new Error('Request timeout after 30000ms'),
     );

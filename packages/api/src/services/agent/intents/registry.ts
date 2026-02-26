@@ -3,6 +3,7 @@ import type { IntentDefinition } from '@sapai/shared';
 export const intentRegistry: IntentDefinition[] = [
   {
     id: 'GET_PURCHASE_ORDER',
+    name: 'View Purchase Order',
     description: 'Retrieve a purchase order by its number, including all items',
     category: 'read',
     confirmation: 'never',
@@ -29,6 +30,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'LIST_PURCHASE_ORDERS',
+    name: 'List Purchase Orders',
     description: 'List purchase orders with optional filters',
     category: 'read',
     confirmation: 'never',
@@ -79,6 +81,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'CREATE_PURCHASE_ORDER',
+    name: 'Create Purchase Order',
     description: 'Create a new purchase order with line items',
     category: 'create',
     confirmation: 'always',
@@ -134,6 +137,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'UPDATE_PO_HEADER',
+    name: 'Update PO Header',
     description: 'Update header-level fields on a purchase order',
     category: 'update',
     confirmation: 'write_only',
@@ -189,6 +193,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'UPDATE_PO_ITEM',
+    name: 'Update Line Item',
     description: 'Update fields on a specific line item of a purchase order',
     category: 'update',
     confirmation: 'write_only',
@@ -238,6 +243,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'ADD_PO_ITEM',
+    name: 'Add Line Item',
     description: 'Add a new line item to an existing purchase order',
     category: 'create',
     confirmation: 'always',
@@ -295,6 +301,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'DELETE_PURCHASE_ORDER',
+    name: 'Delete Purchase Order',
     description: 'Soft-delete an entire purchase order',
     category: 'delete',
     confirmation: 'always',
@@ -319,6 +326,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'DELETE_PO_ITEM',
+    name: 'Delete Line Item',
     description: 'Delete a specific line item from a purchase order',
     category: 'delete',
     confirmation: 'always',
@@ -349,6 +357,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'GET_PO_ITEMS',
+    name: 'View All Line Items',
     description: 'List all line items for a specific purchase order',
     category: 'read',
     confirmation: 'never',
@@ -373,6 +382,7 @@ export const intentRegistry: IntentDefinition[] = [
   },
   {
     id: 'GET_PO_ITEM',
+    name: 'View Line Item',
     description: 'Get a specific line item on a purchase order',
     category: 'read',
     confirmation: 'never',

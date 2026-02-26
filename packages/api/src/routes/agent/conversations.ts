@@ -163,7 +163,12 @@ export const conversationsApp = new OpenAPIHono();
 conversationsApp.openapi(listRoute, async (c) => {
   const { status, limit, offset } = c.req.valid('query');
   const auth = getAuth(c);
-  log.debug('LIST conversations', { status, limit, offset, userId: auth?.userId });
+  log.debug('LIST conversations', {
+    status,
+    limit,
+    offset,
+    userId: auth?.userId,
+  });
   const convs = await conversationStore.listConversations({
     status,
     userId: auth?.userId,
@@ -245,10 +250,7 @@ conversationsApp.openapi(updateRoute, async (c) => {
     );
   }
 
-  return c.json(
-    { success: true as const, data: updated },
-    HttpStatusCodes.OK,
-  );
+  return c.json({ success: true as const, data: updated }, HttpStatusCodes.OK);
 });
 
 conversationsApp.openapi(deleteRoute, async (c) => {
