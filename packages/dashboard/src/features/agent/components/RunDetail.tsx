@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ConfirmModal } from '../../../components/ConfirmModal';
 import {
@@ -164,11 +164,11 @@ export function RunDetail({ runId }: RunDetailProps) {
     retryRunMutation.mutate(runId);
   };
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = () => {
     deleteRunMutation.mutate(runId, {
       onSuccess: () => navigate({ to: '/agent' }),
     });
-  }, [deleteRunMutation, runId, navigate]);
+  };
 
   const isActionPending =
     continueRunMutation.isPending ||
