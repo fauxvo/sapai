@@ -96,7 +96,7 @@ describe('PurchaseOrderScheduleLineService', () => {
   // ---------------------------------------------------------------------------
 
   describe('getScheduleLines', () => {
-    it('returns ok result on success', async () => {
+    it('returns ok result on success (no extra SAP call)', async () => {
       const mockLines = [
         {
           purchasingDocument: '4500000001',
@@ -104,14 +104,6 @@ describe('PurchaseOrderScheduleLineService', () => {
           scheduleLine: '0001',
         },
       ];
-      // Mock PO existence check
-      mockPoCheckGetByKey.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          execute: vi
-            .fn()
-            .mockResolvedValue({ purchaseOrder: '4500000001' }),
-        }),
-      });
       const filterMock = vi.fn().mockReturnValue({
         execute: vi.fn().mockResolvedValue(mockLines),
       });
@@ -122,9 +114,16 @@ describe('PurchaseOrderScheduleLineService', () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.data).toEqual(mockLines);
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
     });
 
     it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
       const sapError = new Error('Not found');
       (sapError as unknown as Record<string, unknown>).response = {
         status: 404,
@@ -148,7 +147,6 @@ describe('PurchaseOrderScheduleLineService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.httpStatus).toBe(404);
-      expect(mockGetAll).not.toHaveBeenCalled();
     });
   });
 
@@ -254,7 +252,7 @@ describe('PurchaseOrderScheduleLineService', () => {
   // ---------------------------------------------------------------------------
 
   describe('getComponents', () => {
-    it('returns ok result on success', async () => {
+    it('returns ok result on success (no extra SAP call)', async () => {
       const mockComponents = [
         {
           purchaseOrder: '4500000001',
@@ -264,14 +262,6 @@ describe('PurchaseOrderScheduleLineService', () => {
           recordType: 'M',
         },
       ];
-      // Mock PO existence check
-      mockPoCheckGetByKey.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          execute: vi
-            .fn()
-            .mockResolvedValue({ purchaseOrder: '4500000001' }),
-        }),
-      });
       const filterMock = vi.fn().mockReturnValue({
         execute: vi.fn().mockResolvedValue(mockComponents),
       });
@@ -282,9 +272,16 @@ describe('PurchaseOrderScheduleLineService', () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.data).toEqual(mockComponents);
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
     });
 
     it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockCompGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
       const sapError = new Error('Not found');
       (sapError as unknown as Record<string, unknown>).response = {
         status: 404,
@@ -312,7 +309,6 @@ describe('PurchaseOrderScheduleLineService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.httpStatus).toBe(404);
-      expect(mockCompGetAll).not.toHaveBeenCalled();
     });
   });
 

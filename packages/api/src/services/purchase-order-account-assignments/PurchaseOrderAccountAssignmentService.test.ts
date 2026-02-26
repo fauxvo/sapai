@@ -69,7 +69,7 @@ describe('PurchaseOrderAccountAssignmentService', () => {
   });
 
   describe('getAccountAssignments', () => {
-    it('returns list of account assignments for a PO item', async () => {
+    it('returns list of account assignments (no extra SAP call)', async () => {
       const mockAssignments = [
         {
           purchaseOrder: '4500000001',
@@ -79,14 +79,6 @@ describe('PurchaseOrderAccountAssignmentService', () => {
           costCenter: '0000001000',
         },
       ];
-      // Mock PO existence check
-      mockPoCheckGetByKey.mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          execute: vi
-            .fn()
-            .mockResolvedValue({ purchaseOrder: '4500000001' }),
-        }),
-      });
       const filterMock = vi.fn().mockReturnValue({
         execute: vi.fn().mockResolvedValue(mockAssignments),
       });
@@ -98,9 +90,16 @@ describe('PurchaseOrderAccountAssignmentService', () => {
       if (!result.success) return;
       expect(result.data).toHaveLength(1);
       expect(result.data[0].accountAssignmentNumber).toBe('01');
+      expect(mockPoCheckGetByKey).not.toHaveBeenCalled();
     });
 
     it('returns 404 when parent PO does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockGetAll.mockReturnValue({ filter: filterMock });
+      // PO check fails
       const sapError = new Error('Not found');
       (sapError as unknown as Record<string, unknown>).response = {
         status: 404,
@@ -124,7 +123,6 @@ describe('PurchaseOrderAccountAssignmentService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.httpStatus).toBe(404);
-      expect(mockGetAll).not.toHaveBeenCalled();
     });
   });
 

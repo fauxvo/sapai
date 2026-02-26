@@ -18,21 +18,7 @@ export class PurchaseOrderNoteService extends BaseService {
   // ── PO Header Notes ──────────────────────────────────────────────
 
   async getNotes(poId: string): Promise<ServiceResult<PurchaseOrderNote[]>> {
-    // Verify parent PO exists first — getAll().filter() silently returns []
-    // for non-existent POs instead of a 404 error.
-    const { purchaseOrderApi } = this.svc;
-    const poCheck = await this.execute(() =>
-      purchaseOrderApi
-        .requestBuilder()
-        .getByKey(poId)
-        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-        .execute(this.destination),
-    );
-    if (!poCheck.success) {
-      return poCheck as ServiceResult<PurchaseOrderNote[]>;
-    }
-
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderNoteApi } = this.svc;
       return purchaseOrderNoteApi
         .requestBuilder()
@@ -40,6 +26,23 @@ export class PurchaseOrderNoteService extends BaseService {
         .filter(purchaseOrderNoteApi.schema.PURCHASE_ORDER.equals(poId))
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because PO has no notes, or PO doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const { purchaseOrderApi } = this.svc;
+      const poCheck = await this.execute(() =>
+        purchaseOrderApi
+          .requestBuilder()
+          .getByKey(poId)
+          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+          .execute(this.destination),
+      );
+      if (!poCheck.success) {
+        return poCheck as ServiceResult<PurchaseOrderNote[]>;
+      }
+    }
+
+    return result;
   }
 
   async getNoteByKey(
@@ -122,21 +125,7 @@ export class PurchaseOrderNoteService extends BaseService {
     poId: string,
     itemId: string,
   ): Promise<ServiceResult<PurchaseOrderItemNote[]>> {
-    // Verify parent PO exists first — getAll().filter() silently returns []
-    // for non-existent POs instead of a 404 error.
-    const { purchaseOrderApi } = this.svc;
-    const poCheck = await this.execute(() =>
-      purchaseOrderApi
-        .requestBuilder()
-        .getByKey(poId)
-        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-        .execute(this.destination),
-    );
-    if (!poCheck.success) {
-      return poCheck as ServiceResult<PurchaseOrderItemNote[]>;
-    }
-
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderItemNoteApi } = this.svc;
       return purchaseOrderItemNoteApi
         .requestBuilder()
@@ -147,6 +136,23 @@ export class PurchaseOrderNoteService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because PO has no item notes, or PO doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const { purchaseOrderApi } = this.svc;
+      const poCheck = await this.execute(() =>
+        purchaseOrderApi
+          .requestBuilder()
+          .getByKey(poId)
+          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+          .execute(this.destination),
+      );
+      if (!poCheck.success) {
+        return poCheck as ServiceResult<PurchaseOrderItemNote[]>;
+      }
+    }
+
+    return result;
   }
 
   async getItemNoteByKey(

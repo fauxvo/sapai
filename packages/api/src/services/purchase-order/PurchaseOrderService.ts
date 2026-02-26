@@ -231,21 +231,7 @@ export class PurchaseOrderService extends BaseService {
   async getItems(
     purchaseOrderId: string,
   ): Promise<ServiceResult<PurchaseOrderItem[]>> {
-    // Verify parent PO exists first — getAll().filter() silently returns []
-    // for non-existent POs instead of a 404 error.
-    const { purchaseOrderApi } = this.svc;
-    const poCheck = await this.execute(() =>
-      purchaseOrderApi
-        .requestBuilder()
-        .getByKey(purchaseOrderId)
-        .select(purchaseOrderApi.schema.PURCHASE_ORDER)
-        .execute(this.destination),
-    );
-    if (!poCheck.success) {
-      return poCheck as ServiceResult<PurchaseOrderItem[]>;
-    }
-
-    return this.execute(() => {
+    const result = await this.execute(() => {
       const { purchaseOrderItemApi } = this.svc;
       return purchaseOrderItemApi
         .requestBuilder()
@@ -255,6 +241,23 @@ export class PurchaseOrderService extends BaseService {
         )
         .execute(this.destination);
     });
+
+    // Disambiguate: empty because PO has no items, or PO doesn't exist?
+    if (result.success && result.data.length === 0) {
+      const { purchaseOrderApi } = this.svc;
+      const poCheck = await this.execute(() =>
+        purchaseOrderApi
+          .requestBuilder()
+          .getByKey(purchaseOrderId)
+          .select(purchaseOrderApi.schema.PURCHASE_ORDER)
+          .execute(this.destination),
+      );
+      if (!poCheck.success) {
+        return poCheck as ServiceResult<PurchaseOrderItem[]>;
+      }
+    }
+
+    return result;
   }
 
   async getItem(
