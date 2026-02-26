@@ -6,12 +6,26 @@ import { PipelineRunStore } from './services/agent/PipelineRunStore.js';
 
 runMigrations();
 
-// Crash recovery: mark stale running runs as failed
+// Crash recovery: mark any non-terminal runs as failed (server restarted)
 (async () => {
   try {
     const pipelineStore = new PipelineRunStore();
-    const staleRuns = await pipelineStore.findStaleRuns(5 * 60 * 1000);
+    // Use 0ms cutoff — any non-terminal run at startup is stale
+    const staleRuns = await pipelineStore.findStaleRuns(0);
     for (const run of staleRuns) {
+      // Mark the run-level stage that was in-progress as failed too
+      const runWithStages = await pipelineStore.getRunWithStages(run.id);
+      if (runWithStages) {
+        for (const stage of runWithStages.stages) {
+          if (stage.status === 'running') {
+            await pipelineStore.updateStage(stage.id, {
+              status: 'failed',
+              error: 'Server restarted during pipeline execution',
+              completedAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
       await pipelineStore.updateRun(run.id, {
         status: 'failed',
         error: 'Server restarted during pipeline execution',

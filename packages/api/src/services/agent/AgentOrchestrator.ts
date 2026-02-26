@@ -860,17 +860,22 @@ export class AgentOrchestrator {
       );
     }
 
-    // Find the failed stage
-    const failedStage = runWithStages.stages.find((s) => s.status === 'failed');
+    // Find the failed stage, or the first non-completed stage (handles
+    // crash recovery where run is failed but stages weren't updated)
+    const failedStage =
+      runWithStages.stages.find((s) => s.status === 'failed') ??
+      runWithStages.stages.find(
+        (s) => s.status !== 'completed' && s.status !== 'skipped',
+      );
     if (!failedStage) {
       throw new OrchestratorError(
-        `No failed stage found on run ${params.runId}`,
+        `No retryable stage found on run ${params.runId}`,
         'error',
         'EXECUTION_FAILED',
       );
     }
 
-    // Reset the failed stage
+    // Reset the stage
     await this.deps.pipelineRunStore.updateStage(failedStage.id, {
       status: 'pending',
       startedAt: null,
