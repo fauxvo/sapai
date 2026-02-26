@@ -103,6 +103,21 @@ describe('useSapHealth', () => {
     expect(result.current.data?.status).toBe('error');
   });
 
+  it('returns error status when res.json() throws (HTML error page)', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: () => Promise.reject(new SyntaxError('Unexpected token <')),
+    } as Response);
+
+    const { result } = renderHook(() => useSapHealth(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.status).toBe('error');
+    expect(result.current.data?.message).toBe('Non-JSON response');
+  });
+
   it('enters error state when fetch rejects (network down)', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('Failed to fetch'));
 

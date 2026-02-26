@@ -17,12 +17,16 @@ const VALID_STATUSES = new Set<SapHealthStatus['status']>([
 
 async function fetchSapHealth(): Promise<SapHealthStatus> {
   const res = await fetch(`${API_BASE}/sap/health`);
-  // Both 200 and 503 return valid JSON — don't throw on 503
-  const json = await res.json();
-  if (!json || !VALID_STATUSES.has(json.status)) {
+  let json: Record<string, unknown>;
+  try {
+    json = await res.json();
+  } catch {
+    return { status: 'error', authenticated: null, message: 'Non-JSON response' };
+  }
+  if (!json || !VALID_STATUSES.has(json.status as SapHealthStatus['status'])) {
     return { status: 'error', authenticated: null, message: 'Unexpected response' };
   }
-  return json as SapHealthStatus;
+  return json as unknown as SapHealthStatus;
 }
 
 /**
