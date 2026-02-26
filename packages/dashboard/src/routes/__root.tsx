@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { SapStatusIndicator } from '../features/sap/components/SapStatusIndicator';
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -33,7 +34,8 @@ export const Route = createRootRoute({
             >
               Audit Log
             </Link>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-4">
+              <SapStatusIndicator />
               <a
                 href={`${apiBaseUrl}/docs`}
                 target="_blank"
