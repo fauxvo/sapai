@@ -127,9 +127,11 @@ describe('useSapHealth', () => {
     expect(result.current.data?.message).toBe('Non-JSON response');
   });
 
-  it('returns error status when API returns 401 (Clerk auth rejection)', async () => {
+  it('returns auth error when API returns 401 (Clerk rejection)', async () => {
     vi.mocked(fetch).mockResolvedValue({
-      json: () => Promise.resolve({ error: 'Unauthorized' }),
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ error: 'Unauthorized', success: false }),
     } as Response);
 
     const { result } = renderHook(() => useSapHealth(), {
@@ -138,9 +140,25 @@ describe('useSapHealth', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // 401 body has no valid status field, so it falls through to error sentinel
     expect(result.current.data?.status).toBe('error');
-    expect(result.current.data?.message).toBe('Unexpected response');
+    expect(result.current.data?.message).toBe('Authentication failed (401)');
+  });
+
+  it('returns auth error when API returns 403', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ error: 'Forbidden' }),
+    } as Response);
+
+    const { result } = renderHook(() => useSapHealth(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.status).toBe('error');
+    expect(result.current.data?.message).toBe('Authentication failed (403)');
   });
 
   it('sends no auth header when token is undefined', async () => {

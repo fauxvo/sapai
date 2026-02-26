@@ -37,6 +37,16 @@ async function fetchSapHealth(token?: string): Promise<SapHealthStatus> {
     headers.Authorization = `Bearer ${token}`;
   }
   const res = await fetch(`${API_BASE}/sap/health`, { headers });
+
+  // Auth failures are not SAP status — surface them distinctly.
+  // 503 is expected (SAP offline), so only treat 401/403 as auth errors.
+  if (res.status === 401 || res.status === 403) {
+    return {
+      ...ERROR_SENTINEL,
+      message: `Authentication failed (${res.status})`,
+    };
+  }
+
   let json: unknown;
   try {
     json = await res.json();
