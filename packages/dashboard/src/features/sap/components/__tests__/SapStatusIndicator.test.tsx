@@ -131,4 +131,16 @@ describe('SapStatusIndicator', () => {
     const indicator = screen.getByText('SAP Offline').closest('div');
     expect(indicator?.getAttribute('title')).toContain('Connection refused');
   });
+
+  it('falls back to error config for unexpected status values', () => {
+    mockUseSapHealth.mockReturnValue({
+      data: { status: 'something_unexpected', authenticated: null },
+      isLoading: false,
+      isError: false,
+    });
+    const { container } = renderWithQuery(<SapStatusIndicator />);
+    // Should render error styling instead of crashing
+    expect(screen.getByText('SAP Offline')).toBeInTheDocument();
+    expect(container.querySelector('.bg-red-500')).toBeInTheDocument();
+  });
 });

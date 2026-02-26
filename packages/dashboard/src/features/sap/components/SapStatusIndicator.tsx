@@ -51,7 +51,7 @@ export function SapStatusIndicator() {
     );
   }
 
-  const config = STATUS_CONFIG[data.status];
+  const config = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.error;
   const isHealthy = data.status === 'connected';
   const tooltip = [
     config.label,

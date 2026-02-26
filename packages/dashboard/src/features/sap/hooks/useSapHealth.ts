@@ -9,10 +9,19 @@ export interface SapHealthStatus {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const VALID_STATUSES = new Set<SapHealthStatus['status']>([
+  'connected',
+  'degraded',
+  'error',
+]);
+
 async function fetchSapHealth(): Promise<SapHealthStatus> {
   const res = await fetch(`${API_BASE}/sap/health`);
   // Both 200 and 503 return valid JSON — don't throw on 503
   const json = await res.json();
+  if (!json || !VALID_STATUSES.has(json.status)) {
+    return { status: 'error', authenticated: null, message: 'Unexpected response' };
+  }
   return json as SapHealthStatus;
 }
 

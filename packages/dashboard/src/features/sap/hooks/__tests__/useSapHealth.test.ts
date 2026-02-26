@@ -72,6 +72,37 @@ describe('useSapHealth', () => {
     );
   });
 
+  it('returns error status for unexpected response shape', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: () =>
+        Promise.resolve({ error: 'proxy timeout', code: 502 }),
+    } as Response);
+
+    const { result } = renderHook(() => useSapHealth(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.status).toBe('error');
+    expect(result.current.data?.message).toBe('Unexpected response');
+  });
+
+  it('returns error status for unknown status values', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: () =>
+        Promise.resolve({ status: 'maintenance', authenticated: null }),
+    } as Response);
+
+    const { result } = renderHook(() => useSapHealth(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.status).toBe('error');
+  });
+
   it('enters error state when fetch rejects (network down)', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('Failed to fetch'));
 
