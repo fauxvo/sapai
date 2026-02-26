@@ -22,6 +22,12 @@ export const Route = createRootRoute({
               Pipeline Runs
             </Link>
             <Link
+              to="/agent/intents"
+              className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
+            >
+              Actions
+            </Link>
+            <Link
               to="/agent/history"
               className="text-sm text-gray-600 hover:text-gray-900 [&.active]:font-medium [&.active]:text-blue-600"
             >
