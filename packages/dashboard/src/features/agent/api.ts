@@ -202,6 +202,16 @@ export async function deleteRun(id: string, token?: string): Promise<void> {
   });
 }
 
+export async function retryRun(
+  id: string,
+  token?: string,
+): Promise<RunWithStages> {
+  return apiRequest(`/api/agent/runs/${id}/retry`, {
+    method: 'POST',
+    token,
+  });
+}
+
 export async function rejectRun(
   id: string,
   token?: string,

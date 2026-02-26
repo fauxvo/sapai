@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   useRun,
-  useCreateRun,
   useUpdateRun,
   useDeleteRun,
+  useRetryRun,
   useContinueRun,
   useApproveRun,
   useRejectRun,
@@ -171,10 +171,10 @@ export function RunDetail({ runId }: RunDetailProps) {
   const navigate = useNavigate();
   const updateRunMutation = useUpdateRun();
   const deleteRunMutation = useDeleteRun();
+  const retryRunMutation = useRetryRun();
   const continueRunMutation = useContinueRun();
   const approveRunMutation = useApproveRun();
   const rejectRunMutation = useRejectRun();
-  const retryRunMutation = useCreateRun();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState('');
 
@@ -226,18 +226,7 @@ export function RunDetail({ runId }: RunDetailProps) {
   };
 
   const handleRetry = () => {
-    retryRunMutation.mutate(
-      {
-        message: run.inputMessage,
-        name: run.name ?? undefined,
-        mode: run.mode,
-      },
-      {
-        onSuccess: (data) => {
-          navigate({ to: '/agent/run/$id', params: { id: data.run.id } });
-        },
-      },
-    );
+    retryRunMutation.mutate(runId);
   };
 
   const handleDelete = () => {
@@ -454,9 +443,7 @@ export function RunDetail({ runId }: RunDetailProps) {
             disabled={retryRunMutation.isPending}
             className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {retryRunMutation.isPending
-              ? 'Retrying...'
-              : 'Retry with Same Input'}
+            {retryRunMutation.isPending ? 'Retrying...' : 'Retry Failed Stage'}
           </button>
           {retryRunMutation.error && (
             <p className="mt-2 text-sm text-red-600">

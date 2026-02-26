@@ -837,6 +837,79 @@ export class AgentOrchestrator {
     return latest;
   }
 
+  async retryRun(params: {
+    runId: string;
+    onStageUpdate?: (update: StageUpdate) => Promise<void> | void;
+  }): Promise<RunWithStages> {
+    const runWithStages = await this.deps.pipelineRunStore.getRunWithStages(
+      params.runId,
+    );
+    if (!runWithStages) {
+      throw new OrchestratorError(
+        `Run ${params.runId} not found`,
+        'error',
+        'EXECUTION_FAILED',
+      );
+    }
+
+    if (runWithStages.run.status !== 'failed') {
+      throw new OrchestratorError(
+        `Run ${params.runId} is ${runWithStages.run.status}, not failed`,
+        'error',
+        'EXECUTION_FAILED',
+      );
+    }
+
+    // Find the failed stage
+    const failedStage = runWithStages.stages.find((s) => s.status === 'failed');
+    if (!failedStage) {
+      throw new OrchestratorError(
+        `No failed stage found on run ${params.runId}`,
+        'error',
+        'EXECUTION_FAILED',
+      );
+    }
+
+    // Reset the failed stage
+    await this.deps.pipelineRunStore.updateStage(failedStage.id, {
+      status: 'pending',
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      error: null,
+      output: null,
+      progressItems: [],
+    });
+
+    // Set run back to running
+    await this.deps.pipelineRunStore.updateRun(params.runId, {
+      status: 'running',
+      error: null,
+      completedAt: null,
+      durationMs: null,
+    });
+
+    // Re-execute from the failed stage
+    await this.executeStages({
+      runId: params.runId,
+      fromStage: failedStage.stage,
+      conversationId: runWithStages.run.conversationId ?? undefined,
+      onStageUpdate: params.onStageUpdate,
+    });
+
+    const latest = await this.deps.pipelineRunStore.getRunWithStages(
+      params.runId,
+    );
+    if (!latest) {
+      throw new OrchestratorError(
+        `Run ${params.runId} not found after retry`,
+        'error',
+        'EXECUTION_FAILED',
+      );
+    }
+    return latest;
+  }
+
   async approveRun(runId: string, approved: boolean): Promise<RunWithStages> {
     const run = await this.deps.pipelineRunStore.getById(runId);
     if (!run) {

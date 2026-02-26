@@ -255,6 +255,26 @@ runsApp.post('/runs/:id/continue', async (c) => {
   }
 });
 
+// POST /runs/:id/retry — Retry from failed stage
+runsApp.post('/runs/:id/retry', async (c) => {
+  const id = c.req.param('id');
+
+  const existing = await pipelineRunStore.getById(id);
+  if (!existing || !isOwner(existing, getAuth(c))) {
+    return c.json({ success: false, error: 'Run not found' }, 404);
+  }
+
+  const orchestrator = getOrchestrator();
+
+  try {
+    const runWithStages = await orchestrator.retryRun({ runId: id });
+    return c.json({ success: true, data: runWithStages });
+  } catch (err) {
+    const resp = orchestratorErrorResponse(err);
+    return c.json(resp.body, resp.status as 404 | 409 | 500);
+  }
+});
+
 // POST /runs/:id/approve — Approve pending plan
 runsApp.post('/runs/:id/approve', async (c) => {
   const id = c.req.param('id');
