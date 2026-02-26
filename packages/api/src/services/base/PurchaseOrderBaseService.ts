@@ -1,7 +1,10 @@
 import { BaseService } from './BaseService.js';
 import type { ServiceResult } from './types.js';
+import { createLogger } from '../../utils/logger.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+const logger = createLogger('PurchaseOrderBaseService');
 
 /**
  * Shared base for all PO-related services. Provides lazy
@@ -10,8 +13,15 @@ import type { ServiceResult } from './types.js';
  * parent entities instead of a 404).
  *
  * Only 404 errors from existence checks are propagated. Other failures
- * (network errors, 503s, etc.) are ignored — a successful empty list
- * is more useful than an infrastructure error from a speculative check.
+ * (network errors, 503s, etc.) are logged at WARN level but otherwise
+ * ignored — returning a successful empty list is more useful than
+ * surfacing an infrastructure error from a speculative check.
+ *
+ * **TOCTOU caveat**: These checks run *after* the primary query, so
+ * there is a small window where a concurrent delete could cause the
+ * existence check to return 404 even though the entity existed when
+ * the original request arrived. This is inherent to the two-query
+ * approach and is accepted as a low-probability edge case.
  */
 export abstract class PurchaseOrderBaseService extends BaseService {
   /**
@@ -29,8 +39,15 @@ export abstract class PurchaseOrderBaseService extends BaseService {
         .select(purchaseOrderApi.schema.PURCHASE_ORDER)
         .execute(this.destination),
     );
-    if (!check.success && check.error.httpStatus === 404) {
-      return check as ServiceResult<T>;
+    if (!check.success) {
+      if (check.error.httpStatus === 404) {
+        return check as ServiceResult<T>;
+      }
+      logger.warn('Non-404 error during PO existence check (suppressed)', {
+        poId,
+        httpStatus: check.error.httpStatus,
+        code: check.error.code,
+      });
     }
     return null;
   }
@@ -58,8 +75,16 @@ export abstract class PurchaseOrderBaseService extends BaseService {
         )
         .execute(this.destination),
     );
-    if (!check.success && check.error.httpStatus === 404) {
-      return check as ServiceResult<T>;
+    if (!check.success) {
+      if (check.error.httpStatus === 404) {
+        return check as ServiceResult<T>;
+      }
+      logger.warn('Non-404 error during item existence check (suppressed)', {
+        poId,
+        itemId,
+        httpStatus: check.error.httpStatus,
+        code: check.error.code,
+      });
     }
     return null;
   }
@@ -91,8 +116,20 @@ export abstract class PurchaseOrderBaseService extends BaseService {
         .getByKey(poId, itemId, lineId)
         .execute(this.destination),
     );
-    if (!check.success && check.error.httpStatus === 404) {
-      return check as ServiceResult<T>;
+    if (!check.success) {
+      if (check.error.httpStatus === 404) {
+        return check as ServiceResult<T>;
+      }
+      logger.warn(
+        'Non-404 error during schedule line existence check (suppressed)',
+        {
+          poId,
+          itemId,
+          lineId,
+          httpStatus: check.error.httpStatus,
+          code: check.error.code,
+        },
+      );
     }
     return null;
   }
