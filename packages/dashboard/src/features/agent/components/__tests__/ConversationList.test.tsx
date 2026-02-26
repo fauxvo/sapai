@@ -53,7 +53,9 @@ describe('ConversationList', () => {
       />,
     );
     // The row div (parent of button) carries the active styling
-    const activeRow = screen.getByText('Purchase Order Query').closest('div.group');
+    const activeRow = screen
+      .getByText('Purchase Order Query')
+      .closest('div.group');
     expect(activeRow?.className).toContain('bg-blue-50');
     expect(activeRow?.className).toContain('text-blue-700');
   });

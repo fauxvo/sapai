@@ -4,6 +4,7 @@ import { parseStreamApp } from './parse-stream.js';
 import { executeApp } from './execute.js';
 import { conversationsApp } from './conversations.js';
 import { historyApp } from './history.js';
+import { runsApp } from './runs.js';
 
 export const agentApp = new OpenAPIHono();
 
@@ -12,3 +13,4 @@ agentApp.route('/', parseStreamApp);
 agentApp.route('/', executeApp);
 agentApp.route('/', conversationsApp);
 agentApp.route('/', historyApp);
+agentApp.route('/', runsApp);

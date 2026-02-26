@@ -209,12 +209,8 @@ describe('AgentChat', () => {
     } as unknown as ReturnType<typeof useConversation>);
 
     render(<AgentChat />);
-    expect(
-      screen.getByText('Show me PO 4500000001'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Here is PO 4500000001'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Show me PO 4500000001')).toBeInTheDocument();
+    expect(screen.getByText('Here is PO 4500000001')).toBeInTheDocument();
     // Empty state should not show
     expect(screen.queryByText('SAP AI Agent')).not.toBeInTheDocument();
   });
@@ -267,9 +263,7 @@ describe('AgentChat', () => {
 
   it('does not show pipeline progress when not streaming and no stage data', () => {
     render(<AgentChat />);
-    expect(
-      screen.queryByText('Pipeline Progress'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Pipeline Progress')).not.toBeInTheDocument();
   });
 
   it('shows pipeline after streaming ends when completed stages exist', () => {
@@ -279,7 +273,13 @@ describe('AgentChat', () => {
       isStreaming: false,
       stages: {
         currentStage: null,
-        completedStages: ['parsing', 'validating', 'resolving', 'planning', 'executing'],
+        completedStages: [
+          'parsing',
+          'validating',
+          'resolving',
+          'planning',
+          'executing',
+        ],
         stageDetails: [],
         progressItems: {},
         error: null,
@@ -409,7 +409,13 @@ describe('AgentChat', () => {
       stream: mockStream,
       cancel: vi.fn(),
       isStreaming: false,
-      stages: { currentStage: null, completedStages: [], stageDetails: [], progressItems: {}, error: null },
+      stages: {
+        currentStage: null,
+        completedStages: [],
+        stageDetails: [],
+        progressItems: {},
+        error: null,
+      },
     });
 
     const mockMutateAsync = vi.fn().mockResolvedValue({

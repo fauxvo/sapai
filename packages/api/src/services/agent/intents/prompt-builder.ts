@@ -38,6 +38,16 @@ export function buildSystemPrompt(registry: IntentDefinition[]): string {
    - 0.7-0.9: Likely intent but some inference required
    - 0.5-0.7: Possible intent but significant ambiguity
    - Below 0.5: Very uncertain, likely wrong
+8. For EVERY extracted field, provide a per-field confidence score in fieldConfidence:
+   - rawValue: The exact text the user wrote (e.g. "Line 6", "PO 4500000002")
+   - confidence: 0.0-1.0 how confident you are in the extracted value
+   - interpretation: A short explanation of how you interpreted it (e.g. "Explicit PO number", "Interpreted 'line 6' as item number 6")
+   - alternatives: If the value is ambiguous, list other valid interpretations (e.g. for "line 6": ["Item number 00006", "6th positional line item (typically 00060 in SAP)"])
+
+   Be especially careful with SAP item references:
+   - "item 10" or "item number 10" → high confidence, direct item number
+   - "line 6" or "6th item" → lower confidence, ambiguous between item number and positional index
+   - SAP PO items are typically numbered in increments of 10 (00010, 00020, etc.), so "line 6" meaning item 00006 is unusual
 
 ## Supported Intents
 
@@ -78,6 +88,37 @@ export function buildToolSchema(
                 description: 'Key-value pairs of extracted entity values',
                 additionalProperties: true,
               },
+              fieldConfidence: {
+                type: 'object',
+                description:
+                  'Per-field confidence breakdown. Key is the field name, value is confidence details.',
+                additionalProperties: {
+                  type: 'object',
+                  properties: {
+                    confidence: {
+                      type: 'number',
+                      description:
+                        'Confidence 0.0-1.0 that this specific field value is correct',
+                    },
+                    rawValue: {
+                      type: 'string',
+                      description:
+                        'The exact text from the user message this was extracted from',
+                    },
+                    interpretation: {
+                      type: 'string',
+                      description:
+                        'How you interpreted this value (e.g. "Explicit PO number", "Interpreted line 6 as item number 6")',
+                    },
+                    alternatives: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Other valid interpretations if ambiguous',
+                    },
+                  },
+                  required: ['confidence', 'rawValue', 'interpretation'],
+                },
+              },
               missingRequiredFields: {
                 type: 'array',
                 items: { type: 'string' },
@@ -97,7 +138,12 @@ export function buildToolSchema(
                 description: 'Fields where the extracted value is uncertain',
               },
             },
-            required: ['intentId', 'confidence', 'extractedFields'],
+            required: [
+              'intentId',
+              'confidence',
+              'extractedFields',
+              'fieldConfidence',
+            ],
           },
         },
         unhandledContent: {

@@ -33,9 +33,7 @@ describe('ExecutionPlanCard', () => {
     const summaryElements = screen.getAllByText('Delete PO 4500000001');
     expect(summaryElements.length).toBeGreaterThanOrEqual(1);
     // The first occurrence is the plan summary paragraph
-    expect(summaryElements[0].closest('p')?.className).toContain(
-      'mb-3',
-    );
+    expect(summaryElements[0].closest('p')?.className).toContain('mb-3');
   });
 
   it('renders action descriptions and API paths', () => {

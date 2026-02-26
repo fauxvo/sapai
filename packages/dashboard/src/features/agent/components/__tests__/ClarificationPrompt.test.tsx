@@ -11,9 +11,7 @@ describe('ClarificationPrompt', () => {
       />,
     );
     expect(
-      screen.getByText(
-        'Please provide more details about the purchase order.',
-      ),
+      screen.getByText('Please provide more details about the purchase order.'),
     ).toBeInTheDocument();
   });
 
@@ -24,9 +22,7 @@ describe('ClarificationPrompt', () => {
         missingFields={['field1']}
       />,
     );
-    expect(
-      screen.getByText('More information needed'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('More information needed')).toBeInTheDocument();
   });
 
   it('lists all missing fields as badges', () => {
@@ -62,9 +58,7 @@ describe('ClarificationPrompt', () => {
       />,
     );
     expect(
-      screen.getByText(
-        'No specific fields missing, but need more context.',
-      ),
+      screen.getByText('No specific fields missing, but need more context.'),
     ).toBeInTheDocument();
     // Should not render the flex wrapper for badges when no fields
     const badgeContainer = container.querySelector('.flex.flex-wrap');
@@ -73,10 +67,7 @@ describe('ClarificationPrompt', () => {
 
   it('renders within a blue-themed container', () => {
     const { container } = render(
-      <ClarificationPrompt
-        message="Info needed"
-        missingFields={[]}
-      />,
+      <ClarificationPrompt message="Info needed" missingFields={[]} />,
     );
     const wrapper = container.firstElementChild;
     expect(wrapper?.className).toContain('bg-blue-50');

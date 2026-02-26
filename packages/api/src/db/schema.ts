@@ -41,7 +41,9 @@ export const executionPlans = sqliteTable('execution_plans', {
   conversationId: text('conversation_id')
     .notNull()
     .references(() => conversations.id, { onDelete: 'cascade' }),
-  messageId: text('message_id').references(() => messages.id, { onDelete: 'cascade' }),
+  messageId: text('message_id').references(() => messages.id, {
+    onDelete: 'cascade',
+  }),
   status: text('status').notNull(),
   plan: text('plan').notNull(),
   result: text('result'),
@@ -50,12 +52,72 @@ export const executionPlans = sqliteTable('execution_plans', {
   createdAt: text('created_at').notNull(),
 });
 
+export const pipelineRuns = sqliteTable(
+  'pipeline_runs',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id').references(() => conversations.id, {
+      onDelete: 'set null',
+    }),
+    inputMessage: text('input_message').notNull(),
+    status: text('status').notNull().default('running'),
+    mode: text('mode').notNull().default('auto'),
+    currentStage: text('current_stage'),
+    result: text('result'),
+    error: text('error'),
+    userId: text('user_id'),
+    startedAt: text('started_at').notNull(),
+    completedAt: text('completed_at'),
+    createdAt: text('created_at').notNull(),
+    durationMs: integer('duration_ms'),
+  },
+  (table) => [
+    index('pipeline_runs_status_idx').on(table.status),
+    index('pipeline_runs_user_id_idx').on(table.userId),
+    index('pipeline_runs_created_at_idx').on(table.createdAt),
+    index('pipeline_runs_conversation_id_idx').on(table.conversationId),
+  ],
+);
+
+export const pipelineStages = sqliteTable(
+  'pipeline_stages',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => pipelineRuns.id, { onDelete: 'cascade' }),
+    stage: text('stage').notNull(),
+    status: text('status').notNull().default('pending'),
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+    durationMs: integer('duration_ms'),
+    detail: text('detail'),
+    input: text('input'),
+    output: text('output'),
+    progressItems: text('progress_items'),
+    error: text('error'),
+    costEstimate: text('cost_estimate'),
+    order: integer('order').notNull(),
+  },
+  (table) => [
+    index('pipeline_stages_run_id_idx').on(table.runId),
+    index('pipeline_stages_run_id_order_idx').on(table.runId, table.order),
+  ],
+);
+
 export const auditLog = sqliteTable(
   'audit_log',
   {
     id: text('id').primaryKey(),
-    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }),
-    planId: text('plan_id').references(() => executionPlans.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id').references(() => conversations.id, {
+      onDelete: 'cascade',
+    }),
+    planId: text('plan_id').references(() => executionPlans.id, {
+      onDelete: 'cascade',
+    }),
+    runId: text('run_id').references(() => pipelineRuns.id, {
+      onDelete: 'set null',
+    }),
     phase: text('phase').notNull(),
     input: text('input'),
     output: text('output'),

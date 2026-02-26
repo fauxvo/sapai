@@ -55,11 +55,20 @@ parseStreamApp.post('/parse/stream', async (c) => {
         data: JSON.stringify(result),
       });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const errorType =
+        err instanceof Error ? err.constructor.name : typeof err;
       await stream.writeSSE({
         id: String(eventId++),
         event: 'error',
         data: JSON.stringify({
-          message: err instanceof Error ? err.message : 'Unknown error',
+          message: errorMessage,
+          errorType,
+          hint: errorMessage.includes('Anthropic')
+            ? 'Check API key and network connectivity to Anthropic'
+            : errorMessage.includes('SAP')
+              ? 'Check SAP system connectivity'
+              : 'Check server logs for details',
         }),
       });
     }

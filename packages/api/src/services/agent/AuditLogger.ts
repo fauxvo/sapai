@@ -28,12 +28,14 @@ export class AuditLogger {
       conversationId: entry.conversationId,
       planId: entry.planId,
       phase: entry.phase,
-      input: entry.input != null
-        ? this.truncateField(entry.input, MAX_FIELD_CHARS)
-        : null,
-      output: entry.output != null
-        ? this.truncateField(entry.output, MAX_FIELD_CHARS)
-        : null,
+      input:
+        entry.input != null
+          ? this.truncateField(entry.input, MAX_FIELD_CHARS)
+          : null,
+      output:
+        entry.output != null
+          ? this.truncateField(entry.output, MAX_FIELD_CHARS)
+          : null,
       userId: entry.userId,
       durationMs: entry.durationMs,
       inputTokens: entry.inputTokens,

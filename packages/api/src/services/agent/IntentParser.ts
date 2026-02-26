@@ -56,14 +56,53 @@ export class IntentParser {
     }
     messages.push({ role: 'user', content: userContent });
 
-    const response = await this.client.messages.create({
-      model: env.ANTHROPIC_MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools: [tool as unknown as Anthropic.Tool],
-      tool_choice: { type: 'tool', name: 'parse_sap_intent' },
-      messages,
-    });
+    let response: Anthropic.Message;
+    try {
+      response = await this.client.messages.create({
+        model: env.ANTHROPIC_MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: [tool as unknown as Anthropic.Tool],
+        tool_choice: { type: 'tool', name: 'parse_sap_intent' },
+        messages,
+      });
+    } catch (err) {
+      // Provide actionable error messages for common Anthropic SDK failures
+      if (err instanceof Anthropic.AuthenticationError) {
+        throw new Error(
+          `Anthropic API authentication failed — check ANTHROPIC_API_KEY (${err.status})`,
+          { cause: err },
+        );
+      }
+      if (err instanceof Anthropic.RateLimitError) {
+        throw new Error(
+          `Anthropic API rate limited — try again shortly (${err.status})`,
+          { cause: err },
+        );
+      }
+      if (err instanceof Anthropic.APIConnectionError) {
+        throw new Error(
+          `Cannot connect to Anthropic API — check network connectivity (${err.message})`,
+          { cause: err },
+        );
+      }
+      if (err instanceof Anthropic.BadRequestError) {
+        throw new Error(
+          `Anthropic API rejected request — ${err.message} (${err.status})`,
+          { cause: err },
+        );
+      }
+      if (err instanceof Anthropic.APIError) {
+        throw new Error(
+          `Anthropic API error — ${err.message} (${err.status})`,
+          { cause: err },
+        );
+      }
+      throw new Error(
+        `AI model call failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+        { cause: err },
+      );
+    }
 
     // Extract token usage
     const tokenUsage: TokenUsage | undefined = response.usage

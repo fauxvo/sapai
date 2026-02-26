@@ -108,8 +108,7 @@ describe('MessageBubble', () => {
     );
     const paragraph = screen.getByText((_content, element) => {
       return (
-        element?.tagName === 'P' &&
-        element?.textContent === 'Line 1\nLine 2'
+        element?.tagName === 'P' && element?.textContent === 'Line 1\nLine 2'
       );
     });
     expect(paragraph.className).toContain('whitespace-pre-wrap');

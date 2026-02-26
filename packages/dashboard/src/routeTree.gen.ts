@@ -13,6 +13,7 @@ import { Route as AgentRouteImport } from './routes/agent'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgentIndexRouteImport } from './routes/agent.index'
 import { Route as AgentHistoryRouteImport } from './routes/agent.history'
+import { Route as AgentRunIdRouteImport } from './routes/agent.run.$id'
 
 const AgentRoute = AgentRouteImport.update({
   id: '/agent',
@@ -34,17 +35,24 @@ const AgentHistoryRoute = AgentHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AgentRoute,
 } as any)
+const AgentRunIdRoute = AgentRunIdRouteImport.update({
+  id: '/run/$id',
+  path: '/run/$id',
+  getParentRoute: () => AgentRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agent': typeof AgentRouteWithChildren
   '/agent/history': typeof AgentHistoryRoute
   '/agent/': typeof AgentIndexRoute
+  '/agent/run/$id': typeof AgentRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agent/history': typeof AgentHistoryRoute
   '/agent': typeof AgentIndexRoute
+  '/agent/run/$id': typeof AgentRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -52,13 +60,20 @@ export interface FileRoutesById {
   '/agent': typeof AgentRouteWithChildren
   '/agent/history': typeof AgentHistoryRoute
   '/agent/': typeof AgentIndexRoute
+  '/agent/run/$id': typeof AgentRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agent' | '/agent/history' | '/agent/'
+  fullPaths: '/' | '/agent' | '/agent/history' | '/agent/' | '/agent/run/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agent/history' | '/agent'
-  id: '__root__' | '/' | '/agent' | '/agent/history' | '/agent/'
+  to: '/' | '/agent/history' | '/agent' | '/agent/run/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/agent'
+    | '/agent/history'
+    | '/agent/'
+    | '/agent/run/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -96,17 +111,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentHistoryRouteImport
       parentRoute: typeof AgentRoute
     }
+    '/agent/run/$id': {
+      id: '/agent/run/$id'
+      path: '/run/$id'
+      fullPath: '/agent/run/$id'
+      preLoaderRoute: typeof AgentRunIdRouteImport
+      parentRoute: typeof AgentRoute
+    }
   }
 }
 
 interface AgentRouteChildren {
   AgentHistoryRoute: typeof AgentHistoryRoute
   AgentIndexRoute: typeof AgentIndexRoute
+  AgentRunIdRoute: typeof AgentRunIdRoute
 }
 
 const AgentRouteChildren: AgentRouteChildren = {
   AgentHistoryRoute: AgentHistoryRoute,
   AgentIndexRoute: AgentIndexRoute,
+  AgentRunIdRoute: AgentRunIdRoute,
 }
 
 const AgentRouteWithChildren = AgentRoute._addFileChildren(AgentRouteChildren)

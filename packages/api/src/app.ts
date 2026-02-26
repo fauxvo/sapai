@@ -32,10 +32,14 @@ app.use('/api/agent/*', clerkAuth);
 app.use('/api/agent/parse', anthropicGuard);
 app.use('/api/agent/parse/stream', anthropicGuard);
 app.use('/api/agent/execute', anthropicGuard);
+app.use('/api/agent/runs', anthropicGuard);
+app.use('/api/agent/runs/*', anthropicGuard);
 
 // Rate limiting for AI endpoints
 app.use('/api/agent/parse', agentRateLimiter);
 app.use('/api/agent/parse/stream', agentRateLimiter);
+app.use('/api/agent/runs', agentRateLimiter);
+app.use('/api/agent/runs/*', agentRateLimiter);
 
 // Infrastructure health check (for load balancers / probes)
 app.get('/health', (c) => c.json({ status: 'ok' }));

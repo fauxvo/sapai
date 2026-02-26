@@ -239,9 +239,7 @@ export class ConversationStore {
     // automatically removes messages, plans, entities, and audit logs.
     const conditions = [eq(conversations.id, id)];
     if (userId) conditions.push(eq(conversations.userId, userId));
-    await this.db
-      .delete(conversations)
-      .where(and(...conditions));
+    await this.db.delete(conversations).where(and(...conditions));
     log.info('deleteConversation complete', { id });
   }
 

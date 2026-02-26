@@ -9,6 +9,7 @@ import {
   useDeleteConversation,
   useParse,
   useExecute,
+  useIntents,
 } from '../hooks/useAgent';
 import { useParseStream } from '../hooks/useParseStream';
 import { MessageBubble } from './MessageBubble';
@@ -52,6 +53,7 @@ export function AgentChat() {
   const parse = useParse();
   const execute = useExecute(activeConvId);
   const { stream, isStreaming, stages } = useParseStream();
+  const { data: intents = [] } = useIntents();
 
   const setActiveConvId = useCallback(
     (id: string | null) => {
@@ -246,10 +248,9 @@ export function AgentChat() {
     }
   };
 
-  const error =
-    !lastFailedMessage
-      ? (parse.error ?? execute.error ?? createConversation.error)
-      : null;
+  const error = !lastFailedMessage
+    ? (parse.error ?? execute.error ?? createConversation.error)
+    : null;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -271,15 +272,76 @@ export function AgentChat() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {displayMessages.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <p className="text-lg font-medium text-gray-500">
+            <div className="mx-auto max-w-3xl py-8">
+              <div className="mb-6 text-center">
+                <p className="text-lg font-medium text-gray-900">
                   SAP AI Agent
                 </p>
-                <p className="mt-1 text-sm text-gray-400">
-                  Ask about purchase orders in natural language
+                <p className="mt-1 text-sm text-gray-500">
+                  Ask about purchase orders in natural language. Here's what I
+                  can do:
                 </p>
               </div>
+              {intents.length > 0 && (
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {intents.map((intent) => {
+                    const categoryColors: Record<string, string> = {
+                      read: 'bg-blue-50 text-blue-700 ring-blue-200',
+                      create: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+                      update: 'bg-amber-50 text-amber-700 ring-amber-200',
+                      delete: 'bg-red-50 text-red-700 ring-red-200',
+                    };
+                    const methodColors: Record<string, string> = {
+                      GET: 'bg-blue-100 text-blue-700',
+                      POST: 'bg-emerald-100 text-emerald-700',
+                      PATCH: 'bg-amber-100 text-amber-700',
+                      DELETE: 'bg-red-100 text-red-700',
+                    };
+                    return (
+                      <button
+                        key={intent.id}
+                        type="button"
+                        className={`rounded-lg p-3 text-left ring-1 transition-shadow hover:shadow-sm ${categoryColors[intent.category] ?? 'bg-gray-50 text-gray-700 ring-gray-200'}`}
+                        onClick={() => {
+                          if (intent.examples[0]) {
+                            setInput(intent.examples[0]);
+                            inputRef.current?.focus();
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold leading-tight">
+                              {intent.name}
+                            </p>
+                            <p className="mt-0.5 text-xs leading-snug opacity-75">
+                              {intent.description}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                            {intent.category}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <span
+                            className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${methodColors[intent.apiEndpoint.method] ?? 'bg-gray-100 text-gray-600'}`}
+                          >
+                            {intent.apiEndpoint.method}
+                          </span>
+                          <span className="truncate font-mono text-[11px] opacity-70">
+                            {intent.apiEndpoint.path}
+                          </span>
+                        </div>
+                        {intent.examples[0] && (
+                          <p className="mt-1.5 truncate text-xs italic opacity-60">
+                            "{intent.examples[0]}"
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <div className="mx-auto max-w-3xl space-y-3">
@@ -288,8 +350,7 @@ export function AgentChat() {
                   .reverse()
                   .find((m) => m.role === 'user');
                 return displayMessages.map((msg) => {
-                  const isLastUser =
-                    msg.role === 'user' && msg === lastUserMsg;
+                  const isLastUser = msg.role === 'user' && msg === lastUserMsg;
                   return (
                     <MessageBubble
                       key={msg.id}
@@ -345,9 +406,7 @@ export function AgentChat() {
           {lastFailedMessage && (
             <div className="mx-auto mt-3 max-w-3xl">
               <RetryBar
-                errorMessage={
-                  parse.error?.message ?? 'Message failed to send'
-                }
+                errorMessage={parse.error?.message ?? 'Message failed to send'}
                 retryCount={retryCount}
                 maxRetries={MAX_RETRIES}
                 onRetry={handleRetry}

@@ -32,8 +32,8 @@ describe('PipelineProgress', () => {
       />,
     );
     const stageElements = container.querySelectorAll('.space-y-1 > div');
-    const stageTexts = Array.from(stageElements).map(
-      (el) => el.textContent?.trim(),
+    const stageTexts = Array.from(stageElements).map((el) =>
+      el.textContent?.trim(),
     );
     expect(stageTexts).toEqual([
       expect.stringContaining('Parsing intent'),
@@ -114,9 +114,7 @@ describe('PipelineProgress', () => {
     expect(xIcon).toBeInTheDocument();
     expect(xIcon?.textContent).toBe('\u2715');
     // Error message appears inline under the errored stage AND as summary
-    const errorTexts = screen.getAllByText(
-      'Validation failed: invalid fields',
-    );
+    const errorTexts = screen.getAllByText('Validation failed: invalid fields');
     expect(errorTexts.length).toBe(2);
   });
 
@@ -183,7 +181,9 @@ describe('PipelineProgress', () => {
         error={null}
       />,
     );
-    expect(screen.getByText('Sending message to AI model...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Sending message to AI model...'),
+    ).toBeInTheDocument();
   });
 
   it('shows completed detail for finished stage', () => {
@@ -192,7 +192,11 @@ describe('PipelineProgress', () => {
         currentStage="validating"
         completedStages={['parsing']}
         stageDetails={[
-          { stage: 'parsing', startedDetail: 'Sending...', completedDetail: 'Identified 1 intent(s)' },
+          {
+            stage: 'parsing',
+            startedDetail: 'Sending...',
+            completedDetail: 'Identified 1 intent(s)',
+          },
           { stage: 'validating', startedDetail: 'Checking fields...' },
         ]}
         error={null}
@@ -209,14 +213,24 @@ describe('PipelineProgress', () => {
         completedStages={['parsing', 'validating']}
         progressItems={{
           resolving: [
-            { item: '[1/2] GET_PURCHASE_ORDER', detail: 'Resolving: poNumber=4500000001', status: 'done' },
-            { item: '[2/2] LIST_PURCHASE_ORDERS', detail: 'Resolving: no fields', status: 'running' },
+            {
+              item: '[1/2] GET_PURCHASE_ORDER',
+              detail: 'Resolving: poNumber=4500000001',
+              status: 'done',
+            },
+            {
+              item: '[2/2] LIST_PURCHASE_ORDERS',
+              detail: 'Resolving: no fields',
+              status: 'running',
+            },
           ],
         }}
         error={null}
       />,
     );
-    expect(screen.getByText('Resolving: poNumber=4500000001')).toBeInTheDocument();
+    expect(
+      screen.getByText('Resolving: poNumber=4500000001'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Resolving: no fields')).toBeInTheDocument();
     // Done item should have a green checkmark
     const listItems = container.querySelectorAll('li');
@@ -298,7 +312,8 @@ describe('PipelineProgress', () => {
         stageDetails={[
           {
             stage: 'parsing',
-            completedDetail: 'Identified 2 intent(s): getPoPrice (95%), getPoStatus (87%)',
+            completedDetail:
+              'Identified 2 intent(s): getPoPrice (95%), getPoStatus (87%)',
             costEstimate: {
               inputTokens: 1234,
               outputTokens: 567,
