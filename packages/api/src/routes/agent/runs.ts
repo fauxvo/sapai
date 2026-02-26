@@ -66,6 +66,16 @@ export const runsApp = new OpenAPIHono();
 
 const pipelineRunStore = new PipelineRunStore();
 
+/** Return true if the authenticated user owns the run (or auth is disabled). */
+function isOwner(
+  run: { userId: string | null },
+  auth: { userId: string } | undefined,
+): boolean {
+  // No userId on run (legacy/dev) or auth disabled → allow
+  if (!run.userId || !auth) return true;
+  return run.userId === auth.userId;
+}
+
 // POST /runs — Create and start a run
 runsApp.post('/runs', async (c) => {
   const raw = await c.req.json().catch(() => null);
@@ -121,6 +131,7 @@ runsApp.get('/runs', async (c) => {
   try {
     const runs = await pipelineRunStore.listRuns({
       status: statusParam as PipelineRunStatus | undefined,
+      userId: getAuth(c)?.userId,
       limit,
       offset,
     });
@@ -143,7 +154,7 @@ runsApp.get('/runs/:id', async (c) => {
 
   try {
     const runWithStages = await pipelineRunStore.getRunWithStages(id);
-    if (!runWithStages) {
+    if (!runWithStages || !isOwner(runWithStages.run, getAuth(c))) {
       return c.json({ success: false, error: 'Run not found' }, 404);
     }
 
@@ -162,6 +173,12 @@ runsApp.get('/runs/:id', async (c) => {
 // POST /runs/:id/continue — Continue paused run
 runsApp.post('/runs/:id/continue', async (c) => {
   const id = c.req.param('id');
+
+  const existing = await pipelineRunStore.getById(id);
+  if (!existing || !isOwner(existing, getAuth(c))) {
+    return c.json({ success: false, error: 'Run not found' }, 404);
+  }
+
   const orchestrator = getOrchestrator();
 
   try {
@@ -176,6 +193,12 @@ runsApp.post('/runs/:id/continue', async (c) => {
 // POST /runs/:id/approve — Approve pending plan
 runsApp.post('/runs/:id/approve', async (c) => {
   const id = c.req.param('id');
+
+  const existing = await pipelineRunStore.getById(id);
+  if (!existing || !isOwner(existing, getAuth(c))) {
+    return c.json({ success: false, error: 'Run not found' }, 404);
+  }
+
   const orchestrator = getOrchestrator();
 
   try {
@@ -190,6 +213,12 @@ runsApp.post('/runs/:id/approve', async (c) => {
 // POST /runs/:id/reject — Reject pending plan
 runsApp.post('/runs/:id/reject', async (c) => {
   const id = c.req.param('id');
+
+  const existing = await pipelineRunStore.getById(id);
+  if (!existing || !isOwner(existing, getAuth(c))) {
+    return c.json({ success: false, error: 'Run not found' }, 404);
+  }
+
   const orchestrator = getOrchestrator();
 
   try {
@@ -206,7 +235,7 @@ runsApp.get('/runs/:id/stream', async (c) => {
   const id = c.req.param('id');
 
   const runWithStages = await pipelineRunStore.getRunWithStages(id);
-  if (!runWithStages) {
+  if (!runWithStages || !isOwner(runWithStages.run, getAuth(c))) {
     return c.json({ success: false, error: 'Run not found' }, 404);
   }
 
@@ -289,9 +318,9 @@ runsApp.get('/runs/:id/stream', async (c) => {
       }
     }
 
-    // Cleanup listeners and event name entries
+    // Cleanup this connection's listeners only (not cleanupRun which
+    // would nuke all listeners and break concurrent SSE clients)
     unsubStage();
     unsubComplete();
-    runEventBus.cleanupRun(id);
   });
 });

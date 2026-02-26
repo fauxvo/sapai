@@ -1,4 +1,4 @@
-import { eq, desc, and, lt } from 'drizzle-orm';
+import { eq, desc, and, lt, isNull, inArray } from 'drizzle-orm';
 import { db as defaultDb, type DB } from '../../db/index.js';
 import { pipelineRuns, pipelineStages } from '../../db/schema.js';
 import { createLogger } from '../../utils/logger.js';
@@ -71,7 +71,8 @@ export class PipelineRunStore {
       costEstimate: null,
     }));
 
-    this.db.transaction((tx) => {
+    // bun-sqlite transactions are synchronous, but await defensively
+    await this.db.transaction((tx) => {
       tx.insert(pipelineRuns)
         .values({
           id: runId,
@@ -271,7 +272,8 @@ export class PipelineRunStore {
     item: PipelineProgressItem,
   ): Promise<void> {
     log.debug('appendProgressItem', { stageId, item: item.item });
-    this.db.transaction((tx) => {
+    // bun-sqlite transactions are synchronous, but await defensively
+    await this.db.transaction((tx) => {
       const rows = tx
         .select({ progressItems: pipelineStages.progressItems })
         .from(pipelineStages)
@@ -324,17 +326,26 @@ export class PipelineRunStore {
     const cutoff = new Date(Date.now() - olderThanMs).toISOString();
     log.debug('findStaleRuns', { cutoff });
 
-    // Match all non-terminal statuses: running, paused_at_*, awaiting_approval
-    // A run is stale if it has no completedAt and started before the cutoff
-    const allRuns = await this.db
+    const activeStatuses: string[] = [
+      'running',
+      'awaiting_approval',
+      'paused_at_parsing',
+      'paused_at_validating',
+      'paused_at_resolving',
+      'paused_at_planning',
+      'paused_at_executing',
+    ];
+
+    const staleRows = await this.db
       .select()
       .from(pipelineRuns)
-      .where(lt(pipelineRuns.startedAt, cutoff));
-
-    const terminalStatuses = new Set(['completed', 'failed']);
-    const staleRows = allRuns.filter(
-      (r) => !terminalStatuses.has(r.status) && r.completedAt === null,
-    );
+      .where(
+        and(
+          lt(pipelineRuns.startedAt, cutoff),
+          inArray(pipelineRuns.status, activeStatuses),
+          isNull(pipelineRuns.completedAt),
+        ),
+      );
 
     return staleRows.map((r) => this.toRun(r));
   }
