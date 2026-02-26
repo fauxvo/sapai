@@ -289,7 +289,7 @@ describe('PurchaseOrderScheduleLineService', () => {
         execute: vi.fn().mockResolvedValue([]),
       });
       mockCompGetAll.mockReturnValue({ filter: filterMock });
-      // PO check fails
+      // PO check fails with 404
       const sapError = new Error('Not found');
       (sapError as unknown as Record<string, unknown>).response = {
         status: 404,
@@ -317,6 +317,108 @@ describe('PurchaseOrderScheduleLineService', () => {
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.httpStatus).toBe(404);
+    });
+
+    it('returns 404 when schedule line does not exist', async () => {
+      // getAll returns empty
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockCompGetAll.mockReturnValue({ filter: filterMock });
+      // PO check passes
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi
+            .fn()
+            .mockResolvedValue({ purchaseOrder: '4500000001' }),
+        }),
+      });
+      // Item check passes
+      mockItemCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockResolvedValue({
+            purchaseOrder: '4500000001',
+            purchaseOrderItem: '10',
+          }),
+        }),
+      });
+      // Schedule line check fails with 404
+      const sapError = new Error('Not found');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 404,
+        data: {
+          error: {
+            code: '/IWBEP/CM_MGW_RT/020',
+            message: {
+              value:
+                "Resource not found for segment 'A_PurchaseOrderScheduleLineType'",
+            },
+          },
+        },
+      };
+      mockGetByKey.mockReturnValue({
+        execute: vi.fn().mockRejectedValue(sapError),
+      });
+
+      const result = await service.getComponents(
+        '4500000001',
+        '10',
+        '9999',
+      );
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.httpStatus).toBe(404);
+    });
+
+    it('returns empty array when non-404 error during existence check', async () => {
+      // getAll returns empty (legitimate empty result)
+      const filterMock = vi.fn().mockReturnValue({
+        execute: vi.fn().mockResolvedValue([]),
+      });
+      mockCompGetAll.mockReturnValue({ filter: filterMock });
+      // PO check passes
+      mockPoCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi
+            .fn()
+            .mockResolvedValue({ purchaseOrder: '4500000001' }),
+        }),
+      });
+      // Item check passes
+      mockItemCheckGetByKey.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          execute: vi.fn().mockResolvedValue({
+            purchaseOrder: '4500000001',
+            purchaseOrderItem: '10',
+          }),
+        }),
+      });
+      // Schedule line check fails with 503 (not 404)
+      const sapError = new Error('Service unavailable');
+      (sapError as unknown as Record<string, unknown>).response = {
+        status: 503,
+        data: {
+          error: {
+            code: 'SY/530',
+            message: { value: 'Service unavailable' },
+          },
+        },
+      };
+      mockGetByKey.mockReturnValue({
+        execute: vi.fn().mockRejectedValue(sapError),
+      });
+
+      const result = await service.getComponents(
+        '4500000001',
+        '10',
+        '0001',
+      );
+
+      // Should return the original empty success, not the 503
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.data).toEqual([]);
     });
   });
 

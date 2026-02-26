@@ -209,14 +209,16 @@ export class PurchaseOrderScheduleLineService extends PurchaseOrderBaseService {
         .execute(this.destination);
     });
 
-    // Disambiguate: empty because no components, or PO/item doesn't exist?
+    // Disambiguate: empty because no components, or PO/item/line doesn't exist?
     if (result.success && result.data.length === 0) {
       const error =
-        await this.verifyPoItemExists<PoSubcontractingComponent[]>(
+        await this.verifyScheduleLineExists<PoSubcontractingComponent[]>(
           poId,
           itemId,
+          lineId,
           this.svc.purchaseOrderApi,
           this.svc.purchaseOrderItemApi,
+          this.svc.purchaseOrderScheduleLineApi,
         );
       if (error) return error;
     }

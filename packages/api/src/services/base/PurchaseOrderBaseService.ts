@@ -8,11 +8,15 @@ import type { ServiceResult } from './types.js';
  * ancestor-existence checks used by list methods that rely on
  * getAll().filter() (which silently returns [] for non-existent
  * parent entities instead of a 404).
+ *
+ * Only 404 errors from existence checks are propagated. Other failures
+ * (network errors, 503s, etc.) are ignored — a successful empty list
+ * is more useful than an infrastructure error from a speculative check.
  */
 export abstract class PurchaseOrderBaseService extends BaseService {
   /**
-   * Returns a failed ServiceResult if the PO doesn't exist, or null if it does.
-   * Uses a lightweight getByKey with minimal select.
+   * Returns a 404 ServiceResult if the PO doesn't exist, or null
+   * if it does (or if the check fails with a non-404 error).
    */
   protected async verifyPoExists<T>(
     poId: string,
@@ -25,11 +29,14 @@ export abstract class PurchaseOrderBaseService extends BaseService {
         .select(purchaseOrderApi.schema.PURCHASE_ORDER)
         .execute(this.destination),
     );
-    return check.success ? null : (check as ServiceResult<T>);
+    if (!check.success && check.error.httpStatus === 404) {
+      return check as ServiceResult<T>;
+    }
+    return null;
   }
 
   /**
-   * Returns a failed ServiceResult if the PO or item doesn't exist, or
+   * Returns a 404 ServiceResult if the PO or item doesn't exist, or
    * null if both do. Checks PO first for clearer error messages.
    */
   protected async verifyPoItemExists<T>(
@@ -51,6 +58,42 @@ export abstract class PurchaseOrderBaseService extends BaseService {
         )
         .execute(this.destination),
     );
-    return check.success ? null : (check as ServiceResult<T>);
+    if (!check.success && check.error.httpStatus === 404) {
+      return check as ServiceResult<T>;
+    }
+    return null;
+  }
+
+  /**
+   * Returns a 404 ServiceResult if the PO, item, or schedule line
+   * doesn't exist, or null if all do. Checks each level in order
+   * for clearer error messages.
+   */
+  protected async verifyScheduleLineExists<T>(
+    poId: string,
+    itemId: string,
+    lineId: string,
+    purchaseOrderApi: any,
+    purchaseOrderItemApi: any,
+    purchaseOrderScheduleLineApi: any,
+  ): Promise<ServiceResult<T> | null> {
+    const itemError = await this.verifyPoItemExists<T>(
+      poId,
+      itemId,
+      purchaseOrderApi,
+      purchaseOrderItemApi,
+    );
+    if (itemError) return itemError;
+
+    const check = await this.execute(() =>
+      purchaseOrderScheduleLineApi
+        .requestBuilder()
+        .getByKey(poId, itemId, lineId)
+        .execute(this.destination),
+    );
+    if (!check.success && check.error.httpStatus === 404) {
+      return check as ServiceResult<T>;
+    }
+    return null;
   }
 }
