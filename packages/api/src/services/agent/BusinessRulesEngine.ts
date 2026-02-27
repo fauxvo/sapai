@@ -62,10 +62,11 @@ function extractPOHeader(
 function extractItemMeta(
   resolvedEntities: ResolvedEntity[],
 ): Record<string, unknown> | undefined {
+  // Accept any confidence level that carries metadata — safety rules
+  // (delivered, invoiced, deleted) must still fire even on low-confidence
+  // items to prevent accidental data corruption.
   const itemEntity = resolvedEntities.find(
-    (e) =>
-      e.entityType === 'purchaseOrderItem' &&
-      (e.confidence === 'exact' || e.confidence === 'high'),
+    (e) => e.entityType === 'purchaseOrderItem' && e.metadata,
   );
   return itemEntity?.metadata as Record<string, unknown> | undefined;
 }
@@ -615,7 +616,7 @@ const rules: BusinessRule[] = [
     id: 'PAST_DELIVERY_DATE',
     name: 'Past Delivery Date',
     description: 'Delivery dates must not be in the past',
-    severity: 'warn',
+    severity: 'block',
     appliesTo: ['create', 'update'],
     evaluate(ctx) {
       const violations: GuardViolation[] = [];

@@ -192,10 +192,10 @@ export class EntityResolver {
         : await this.resolvePOItemFromSAP(poNumber, String(value), trace);
 
       // Post-resolution corroboration: cross-reference SAP data against
-      // the user's original message to validate/boost confidence
-      if (resolved.confidence === 'exact' || resolved.confidence === 'high') {
-        resolved.corroboration = corroborate(intent, resolved, rawMessage);
-      }
+      // the user's original message to validate/boost confidence.
+      // Run for ALL confidence levels — low-confidence entities benefit
+      // the most from corroboration signals that can upgrade or downgrade.
+      resolved.corroboration = corroborate(intent, resolved, rawMessage);
 
       resolvedEntities.push(resolved);
 

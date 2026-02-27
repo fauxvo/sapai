@@ -1286,7 +1286,7 @@ export class AgentOrchestrator {
               // to prevent prompt injection from crafted user messages that
               // could direct the decomposer to emit instruction-like text.
               const sanitize = (s: string) =>
-                s.replace(/[\n\r\t\x00-\x1f]/g, ' ').trim();
+                s.replace(/[\n\r\t\x00-\x1f\]]/g, ' ').trim();
 
               const specLines = decompositionResult.specifications
                 .map((s) => {
