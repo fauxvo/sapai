@@ -45,10 +45,11 @@ interface BusinessRule {
 function extractPOHeader(
   resolvedEntities: ResolvedEntity[],
 ): POHeaderSummary | undefined {
+  // Accept any confidence level that carries metadata — safety rules
+  // (deleted PO, released PO, currency change) must still fire even on
+  // low-confidence POs to prevent accidental writes to the wrong order.
   const poEntity = resolvedEntities.find(
-    (e) =>
-      e.entityType === 'purchaseOrder' &&
-      (e.confidence === 'exact' || e.confidence === 'high'),
+    (e) => e.entityType === 'purchaseOrder' && e.metadata,
   );
   if (!poEntity?.metadata) return undefined;
   const meta = poEntity.metadata as Record<string, unknown>;

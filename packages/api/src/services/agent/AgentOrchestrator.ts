@@ -1098,16 +1098,23 @@ export class AgentOrchestrator {
     for (let i = startIdx; i < STAGE_ORDER.length; i++) {
       const stageName = STAGE_ORDER[i];
       // Look up by name — stages should always exist for current runs.
-      // For safety-critical stages (guarding), a missing record is a hard
-      // error to prevent SAP writes without safety validation.
+      // Critical stages (parsing, resolving, guarding) get a hard error
+      // because a missing record causes undefined downstream state:
+      //   - missing parsing  → parseResult undefined → resolving throws
+      //   - missing resolving → resolved undefined → guarding throws
+      //   - missing guarding → safety rules skipped → unvalidated SAP writes
       const stageRecord = stages.find((s) => s.stage === stageName);
       if (!stageRecord) {
-        if (stageName === 'guarding') {
+        const criticalStages: PipelineStageName[] = [
+          'parsing',
+          'resolving',
+          'guarding',
+        ];
+        if (criticalStages.includes(stageName)) {
           await store.updateRun(runId, {
             status: 'failed',
             completedAt: new Date().toISOString(),
-            error:
-              'Guard stage record missing — aborting to prevent unvalidated SAP writes.',
+            error: `Stage '${stageName}' record missing — aborting to prevent pipeline corruption.`,
           });
           runEventBus.emitRunComplete(runId);
           return;
@@ -1307,7 +1314,7 @@ export class AgentOrchestrator {
                   const changes = s.fieldChanges
                     .map(
                       (fc) =>
-                        `${sanitize(fc.field)}: ${fc.originalValue ? `${sanitize(fc.originalValue)} -> ` : ''}${sanitize(fc.newValue)}${fc.unit ? ` (${sanitize(fc.unit)})` : ''} [${fc.changeType}]`,
+                        `${sanitize(fc.field)}: ${fc.originalValue ? `${sanitize(fc.originalValue)} -> ` : ''}${sanitize(fc.newValue)}${fc.unit ? ` (${sanitize(fc.unit)})` : ''} [${sanitize(fc.changeType)}]`,
                     )
                     .join('; ');
                   return `  - ${sanitize(s.targetEntity)}${s.materialHint ? ` (${sanitize(s.materialHint)})` : ''}: ${changes}`;
@@ -1996,12 +2003,20 @@ export class AgentOrchestrator {
 
             // Save agent message
             if (conversationId) {
+              const partials = executionResult.results.filter(
+                (r) => r.partialSuccess,
+              );
               const resultSummary = executionResult.overallSuccess
                 ? `Done: ${plan.summary}`
-                : `Some operations failed: ${executionResult.results
-                    .filter((r) => !r.success)
-                    .map((r) => r.error)
-                    .join(', ')}`;
+                : partials.length > 0
+                  ? `Partial success: some fields were written to SAP but not all operations completed. DO NOT retry the entire request — only the failed operations need correction. Details: ${executionResult.results
+                      .filter((r) => !r.success)
+                      .map((r) => r.error)
+                      .join(', ')}`
+                  : `Some operations failed: ${executionResult.results
+                      .filter((r) => !r.success)
+                      .map((r) => r.error)
+                      .join(', ')}`;
               await this.deps.conversationStore.addMessage(
                 conversationId,
                 'agent',
