@@ -218,7 +218,7 @@ export class Executor {
               intentId: action.intentId,
               success: false,
               data: itemData,
-              error: `Item fields updated, but delivery date change failed: ${slResult.error.message}`,
+              error: `Item fields (${Object.keys(itemFields).join(', ')}) were successfully written to SAP, but the delivery date change failed: ${slResult.error.message}. Only the delivery date needs to be corrected — do not re-apply item field changes.`,
             };
         }
 

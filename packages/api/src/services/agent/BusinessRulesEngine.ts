@@ -213,7 +213,7 @@ const rules: BusinessRule[] = [
     evaluate(ctx) {
       if (ctx.intent.intentId !== 'UPDATE_PO_ITEM') return null;
       const newQty = Number(ctx.intent.extractedFields.quantity);
-      if (newQty === undefined || isNaN(newQty) || newQty <= 0) return null;
+      if (isNaN(newQty) || newQty <= 0) return null;
 
       const itemMeta = extractItemMeta(ctx.resolvedEntities);
       const currentQty = Number(itemMeta?.quantity ?? 0);

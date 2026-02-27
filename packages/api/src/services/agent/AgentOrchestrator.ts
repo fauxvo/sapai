@@ -1080,11 +1080,26 @@ export class AgentOrchestrator {
     const conversationId =
       params.conversationId ?? run.conversationId ?? undefined;
 
+    // Safety check: refuse to resume old runs that lack the guarding stage.
+    // These runs were created before the business rules engine existed and
+    // would skip guard checks entirely, allowing unvalidated writes to SAP.
+    const hasGuardStage = stages.some((s) => s.stage === 'guarding');
+    if (!hasGuardStage) {
+      await store.updateRun(runId, {
+        status: 'failed',
+        completedAt: new Date().toISOString(),
+        error:
+          'This run was created before business rules validation was added and cannot be safely resumed. Please start a new run.',
+      });
+      runEventBus.emitRunComplete(runId);
+      return;
+    }
+
     for (let i = startIdx; i < STAGE_ORDER.length; i++) {
       const stageName = STAGE_ORDER[i];
-      // Look up by name for backward compat with old runs that lack 'decomposing'/'guarding'
+      // Look up by name — stages should always exist for current runs
       const stageRecord = stages.find((s) => s.stage === stageName);
-      if (!stageRecord) continue; // stage doesn't exist in this run — skip
+      if (!stageRecord) continue;
       const stageStart = Date.now();
 
       // Mark stage running
@@ -1286,7 +1301,7 @@ export class AgentOrchestrator {
                 .join('\n');
 
               const quantityLines = decompositionResult.quantities
-                .map((q) => `  - ${q.role}: ${q.value} (${sanitize(q.context)})`)
+                .map((q) => `  - ${sanitize(q.role)}: ${q.value} (${sanitize(q.context)})`)
                 .join('\n');
 
               const warningLines =
