@@ -1097,9 +1097,23 @@ export class AgentOrchestrator {
 
     for (let i = startIdx; i < STAGE_ORDER.length; i++) {
       const stageName = STAGE_ORDER[i];
-      // Look up by name — stages should always exist for current runs
+      // Look up by name — stages should always exist for current runs.
+      // For safety-critical stages (guarding), a missing record is a hard
+      // error to prevent SAP writes without safety validation.
       const stageRecord = stages.find((s) => s.stage === stageName);
-      if (!stageRecord) continue;
+      if (!stageRecord) {
+        if (stageName === 'guarding') {
+          await store.updateRun(runId, {
+            status: 'failed',
+            completedAt: new Date().toISOString(),
+            error:
+              'Guard stage record missing — aborting to prevent unvalidated SAP writes.',
+          });
+          runEventBus.emitRunComplete(runId);
+          return;
+        }
+        continue;
+      }
       const stageStart = Date.now();
 
       // Mark stage running

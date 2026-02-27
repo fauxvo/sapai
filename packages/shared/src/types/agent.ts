@@ -180,6 +180,13 @@ export interface ExecutionPlan {
 export interface ExecutionActionResult {
   intentId: string;
   success: boolean;
+  /**
+   * When set to true, indicates that some API calls succeeded before the
+   * failure occurred (e.g., item fields written but schedule line update
+   * failed). Callers MUST NOT blindly retry — inspect `data` and `error`
+   * to determine which operations already completed.
+   */
+  partialSuccess?: boolean;
   data?: unknown;
   error?: string;
 }

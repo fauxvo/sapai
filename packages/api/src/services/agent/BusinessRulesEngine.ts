@@ -631,7 +631,7 @@ const rules: BusinessRule[] = [
           violations.push({
             ruleId: 'PAST_DELIVERY_DATE',
             ruleName: 'Past Delivery Date',
-            severity: 'warn',
+            severity: 'block',
             intentId: ctx.intent.intentId,
             field,
             message: `Delivery date is in the past (${dateStr}).`,
