@@ -46,7 +46,9 @@ function extractPOHeader(
   resolvedEntities: ResolvedEntity[],
 ): POHeaderSummary | undefined {
   const poEntity = resolvedEntities.find(
-    (e) => e.entityType === 'purchaseOrder' && e.confidence === 'exact',
+    (e) =>
+      e.entityType === 'purchaseOrder' &&
+      (e.confidence === 'exact' || e.confidence === 'high'),
   );
   if (!poEntity?.metadata) return undefined;
   const meta = poEntity.metadata as Record<string, unknown>;
