@@ -28,7 +28,7 @@ describe('PipelineRunStore', () => {
     store = new PipelineRunStore(db);
   });
 
-  it('creates a run with 5 pending stages', async () => {
+  it('creates a run with 7 pending stages', async () => {
     const result = await store.createRun({
       inputMessage: 'Show me PO 4500000001',
     });
@@ -39,11 +39,13 @@ describe('PipelineRunStore', () => {
     expect(result.run.status).toBe('running');
     expect(result.run.mode).toBe('auto');
 
-    expect(result.stages).toHaveLength(5);
+    expect(result.stages).toHaveLength(7);
     expect(result.stages.map((s) => s.stage)).toEqual([
+      'decomposing',
       'parsing',
       'validating',
       'resolving',
+      'guarding',
       'planning',
       'executing',
     ]);
@@ -104,7 +106,7 @@ describe('PipelineRunStore', () => {
     const result = await store.getRunWithStages(created.run.id);
     expect(result).toBeDefined();
     expect(result!.run.id).toBe(created.run.id);
-    expect(result!.stages).toHaveLength(5);
+    expect(result!.stages).toHaveLength(7);
 
     // Verify ordering
     for (let i = 0; i < result!.stages.length; i++) {
@@ -190,7 +192,8 @@ describe('PipelineRunStore', () => {
 
   it('updates stage fields', async () => {
     const created = await store.createRun({ inputMessage: 'test' });
-    const stageId = created.stages[0].id;
+    // stages[1] = 'parsing' (stages[0] = 'decomposing')
+    const stageId = created.stages[1].id;
 
     await store.updateStage(stageId, {
       status: 'running',
@@ -206,7 +209,7 @@ describe('PipelineRunStore', () => {
 
   it('updates stage JSON fields', async () => {
     const created = await store.createRun({ inputMessage: 'test' });
-    const stageId = created.stages[0].id;
+    const stageId = created.stages[1].id;
 
     await store.updateStage(stageId, {
       output: { intents: [{ id: 'test' }] },
@@ -239,7 +242,7 @@ describe('PipelineRunStore', () => {
 
   it('appends progress items (new item)', async () => {
     const created = await store.createRun({ inputMessage: 'test' });
-    const stageId = created.stages[0].id;
+    const stageId = created.stages[1].id;
 
     await store.appendProgressItem(stageId, {
       item: 'entity-1',
@@ -255,7 +258,7 @@ describe('PipelineRunStore', () => {
 
   it('appends progress items (upsert existing)', async () => {
     const created = await store.createRun({ inputMessage: 'test' });
-    const stageId = created.stages[0].id;
+    const stageId = created.stages[1].id;
 
     // Add initial item
     await store.appendProgressItem(stageId, {
@@ -279,7 +282,7 @@ describe('PipelineRunStore', () => {
 
   it('appends multiple distinct progress items', async () => {
     const created = await store.createRun({ inputMessage: 'test' });
-    const stageId = created.stages[0].id;
+    const stageId = created.stages[1].id;
 
     await store.appendProgressItem(stageId, {
       item: 'entity-1',
@@ -302,12 +305,12 @@ describe('PipelineRunStore', () => {
     const parsing = await store.getStage(created.run.id, 'parsing');
     expect(parsing).toBeDefined();
     expect(parsing!.stage).toBe('parsing');
-    expect(parsing!.order).toBe(0);
+    expect(parsing!.order).toBe(1);
 
     const executing = await store.getStage(created.run.id, 'executing');
     expect(executing).toBeDefined();
     expect(executing!.stage).toBe('executing');
-    expect(executing!.order).toBe(4);
+    expect(executing!.order).toBe(6);
   });
 
   it('returns undefined for non-existent stage', async () => {

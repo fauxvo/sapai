@@ -5,14 +5,22 @@ import type {
   PlannedAction,
 } from '@sapai/shared';
 import { PurchaseOrderService } from '../purchase-order/PurchaseOrderService.js';
+import { PurchaseOrderScheduleLineService } from '../purchase-order-schedule-lines/PurchaseOrderScheduleLineService.js';
 import { AuditLogger } from './AuditLogger.js';
 
 export class Executor {
   private poService: PurchaseOrderService;
+  private scheduleLineService: PurchaseOrderScheduleLineService;
   private auditLogger: AuditLogger;
 
-  constructor(poService?: PurchaseOrderService, auditLogger?: AuditLogger) {
+  constructor(
+    poService?: PurchaseOrderService,
+    auditLogger?: AuditLogger,
+    scheduleLineService?: PurchaseOrderScheduleLineService,
+  ) {
     this.poService = poService ?? new PurchaseOrderService();
+    this.scheduleLineService =
+      scheduleLineService ?? new PurchaseOrderScheduleLineService();
     this.auditLogger = auditLogger ?? new AuditLogger();
   }
 
@@ -163,18 +171,62 @@ export class Executor {
             success: false,
             error: 'Missing PO number or item ID',
           };
-        const result = await this.poService.updateItem(
-          poNumber,
-          itemId,
-          fields,
-        );
-        if (!result.success)
-          return {
-            intentId: action.intentId,
-            success: false,
-            error: result.error.message,
-          };
-        return { intentId: action.intentId, success: true, data: result.data };
+
+        // Separate delivery date and schedule line metadata from item-level
+        // fields — delivery date lives on the schedule line in SAP, not the
+        // item header.
+        const {
+          deliveryDate,
+          scheduleLineNumber: slNumber,
+          ...itemFields
+        } = fields as Record<string, unknown>;
+
+        // Resolve schedule line number: prefer explicit metadata from entity
+        // resolution (which reads the actual first schedule line), fall back
+        // to SAP's default '0001'.
+        const scheduleLineId = slNumber ? String(slNumber) : '0001';
+
+        // Update item-level fields (quantity, plant, etc.)
+        let itemData: unknown = undefined;
+        const hasItemFields = Object.keys(itemFields).length > 0;
+        if (hasItemFields) {
+          const result = await this.poService.updateItem(
+            poNumber,
+            itemId,
+            itemFields,
+          );
+          if (!result.success)
+            return {
+              intentId: action.intentId,
+              success: false,
+              error: result.error.message,
+            };
+          itemData = result.data;
+        }
+
+        // Update delivery date on the schedule line
+        if (deliveryDate) {
+          const slResult =
+            await this.scheduleLineService.updateScheduleLine(
+              poNumber,
+              itemId,
+              scheduleLineId,
+              { scheduleLineDeliveryDate: String(deliveryDate) },
+            );
+          if (!slResult.success)
+            return {
+              intentId: action.intentId,
+              success: true,
+              data: itemData,
+              error: `Item fields updated successfully, but delivery date change failed: ${slResult.error.message}`,
+            };
+        }
+
+        return {
+          intentId: action.intentId,
+          success: true,
+          data: { ...(itemData as Record<string, unknown> | undefined), deliveryDate },
+        };
       }
 
       case 'ADD_PO_ITEM': {

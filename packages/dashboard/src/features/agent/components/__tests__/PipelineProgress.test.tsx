@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { PipelineProgress } from '../PipelineProgress';
 
 describe('PipelineProgress', () => {
-  it('shows all 5 stages in order', () => {
+  it('shows all 7 stages in order', () => {
     render(
       <PipelineProgress
         currentStage={null}
@@ -12,9 +12,11 @@ describe('PipelineProgress', () => {
       />,
     );
     const labels = [
+      'Decomposing message',
       'Parsing intent',
       'Validating',
       'Resolving entities',
+      'Checking rules',
       'Building plan',
       'Executing',
     ];
@@ -31,14 +33,16 @@ describe('PipelineProgress', () => {
         error={null}
       />,
     );
-    const stageElements = container.querySelectorAll('.space-y-1 > div');
+    const stageElements = container.querySelectorAll('.space-y-0 > div');
     const stageTexts = Array.from(stageElements).map((el) =>
       el.textContent?.trim(),
     );
     expect(stageTexts).toEqual([
+      expect.stringContaining('Decomposing message'),
       expect.stringContaining('Parsing intent'),
       expect.stringContaining('Validating'),
       expect.stringContaining('Resolving entities'),
+      expect.stringContaining('Checking rules'),
       expect.stringContaining('Building plan'),
       expect.stringContaining('Executing'),
     ]);
@@ -141,8 +145,8 @@ describe('PipelineProgress', () => {
     );
     // Dot character is ● (&#9679;)
     const dots = container.querySelectorAll('.text-gray-300');
-    // 4 incomplete stages (validating, resolving, planning, executing)
-    expect(dots.length).toBe(4);
+    // 6 incomplete stages (decomposing, validating, resolving, guarding, planning, executing)
+    expect(dots.length).toBe(6);
     dots.forEach((dot) => {
       expect(dot.textContent).toBe('\u25CF');
     });

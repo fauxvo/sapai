@@ -27,7 +27,7 @@ interface RunDetailProps {
 
 function deriveProgressProps(stages: PipelineStageRecord[]) {
   const completedStages = stages
-    .filter((s) => s.status === 'completed')
+    .filter((s) => s.status === 'completed' || s.status === 'skipped')
     .map((s) => s.stage);
   const currentStage =
     stages.find((s) => s.status === 'running')?.stage ?? null;
@@ -61,6 +61,7 @@ function deriveProgressProps(stages: PipelineStageRecord[]) {
           matchType: c.matchType,
           metadata: c.metadata,
         })),
+        corroboration: p.corroboration,
       })),
     ]),
   );

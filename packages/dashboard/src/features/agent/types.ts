@@ -52,4 +52,5 @@ export interface ProgressItem {
     matchType?: string;
     metadata?: Record<string, unknown>;
   }>;
+  corroboration?: import('@sapai/shared').CorroborationResult;
 }

@@ -50,7 +50,7 @@ const mockPurchaseOrderApi = {
     PURCHASING_DOCUMENT_DELETION_CODE: {},
     RELEASE_IS_NOT_COMPLETED: {},
     PURCHASING_COMPLETENESS_STATUS: {},
-    TO_PURCHASE_ORDER_ITEM: {},
+    TO_PURCHASE_ORDER_ITEM: { select: vi.fn().mockReturnThis() },
   },
 };
 
@@ -69,6 +69,18 @@ const mockPurchaseOrderItemApi = {
   }),
   schema: {
     PURCHASE_ORDER: { equals: vi.fn() },
+    PURCHASE_ORDER_ITEM: {},
+    PURCHASE_ORDER_ITEM_TEXT: {},
+    MATERIAL: {},
+    ORDER_QUANTITY: {},
+    PURCHASE_ORDER_QUANTITY_UNIT: {},
+    NET_PRICE_AMOUNT: {},
+    DOCUMENT_CURRENCY: {},
+    PLANT: {},
+    PURCHASING_DOCUMENT_DELETION_CODE: {},
+    IS_COMPLETELY_DELIVERED: {},
+    IS_FINALLY_INVOICED: {},
+    TO_SCHEDULE_LINE: {},
   },
 };
 

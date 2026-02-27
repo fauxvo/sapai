@@ -4,6 +4,7 @@ import type {
   POHeaderSummary,
   POItemSummary,
 } from '@sapai/shared';
+import { corroborate } from './Corroborator.js';
 import { intentMap } from './intents/registry.js';
 import { PurchaseOrderService } from '../purchase-order/PurchaseOrderService.js';
 import type { PurchaseOrder } from '../../generated/purchase-order-service/PurchaseOrder.js';
@@ -134,6 +135,7 @@ export class EntityResolver {
   async resolve(
     intent: ParsedIntent,
     onTrace?: (trace: ApiCallTrace) => void | Promise<void>,
+    rawMessage?: string,
   ): Promise<{
     intent: ParsedIntent;
     resolvedEntities: ResolvedEntity[];
@@ -188,6 +190,12 @@ export class EntityResolver {
             trace,
           )
         : await this.resolvePOItemFromSAP(poNumber, String(value), trace);
+
+      // Post-resolution corroboration: cross-reference SAP data against
+      // the user's original message to validate/boost confidence
+      if (resolved.confidence === 'exact' || resolved.confidence === 'high') {
+        resolved.corroboration = corroborate(intent, resolved, rawMessage);
+      }
 
       resolvedEntities.push(resolved);
 
@@ -728,7 +736,42 @@ export class EntityResolver {
 
   // --- Helper to build item metadata ---
 
+  /**
+   * Safely extract a date from an SAP SDK value (Moment object or string)
+   * and return it as a YYYY-MM-DD string. Returns undefined if the value
+   * is missing or cannot be converted to a valid date.
+   */
+  private extractSapDate(value: unknown): string | undefined {
+    if (!value) return undefined;
+
+    let dateStr: string;
+    if (typeof value === 'object' && 'format' in value) {
+      // SAP Cloud SDK deserializes Edm.DateTime to Moment objects
+      dateStr = (value as { format: (f: string) => string }).format(
+        'YYYY-MM-DD',
+      );
+    } else {
+      dateStr = String(value);
+    }
+
+    // Validate the output looks like an ISO date
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : undefined;
+  }
+
   private itemMetadata(item: PurchaseOrderItem): Record<string, unknown> {
+    // Extract delivery date and schedule line number from the first schedule
+    // line. Most PO items have exactly one schedule line; when multiple exist
+    // we use the first (lowest-numbered) line.
+    const schedLines = (item as unknown as Record<string, unknown>)
+      .toScheduleLine as Array<Record<string, unknown>> | undefined;
+    const firstLine = schedLines?.[0];
+    const deliveryDateStr = this.extractSapDate(
+      firstLine?.scheduleLineDeliveryDate,
+    );
+    const scheduleLineNumber = firstLine?.scheduleLine
+      ? String(firstLine.scheduleLine)
+      : undefined;
+
     return {
       itemNumber: item.purchaseOrderItem,
       description: item.purchaseOrderItemText ?? '',
@@ -738,6 +781,8 @@ export class EntityResolver {
       netPrice: Number(item.netPriceAmount ?? 0),
       currency: item.documentCurrency ?? '',
       plant: item.plant ?? '',
+      deliveryDate: deliveryDateStr ?? null,
+      scheduleLineNumber: scheduleLineNumber ?? null,
     };
   }
 }

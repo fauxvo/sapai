@@ -217,16 +217,16 @@ export const intentRegistry: IntentDefinition[] = [
         type: 'number',
         description: 'New order quantity',
       },
-      {
-        name: 'netPrice',
-        type: 'number',
-        description: 'New net price amount',
-      },
       { name: 'plant', type: 'string', description: 'Plant code' },
       {
         name: 'description',
         type: 'string',
         description: 'Item text/description',
+      },
+      {
+        name: 'deliveryDate',
+        type: 'date',
+        description: 'New requested delivery date (YYYY-MM-DD)',
       },
     ],
     apiEndpoint: {
@@ -237,8 +237,9 @@ export const intentRegistry: IntentDefinition[] = [
     },
     examples: [
       'Change the quantity of forks on PO 4500000001 to 44',
-      'Update the price on item 00010 of purchase order 4500000001 to 12.50',
       'On PO 4500000001, set the plant for line 00020 to 1710',
+      'Move the delivery date on line 10 of PO 4500000001 to April 30th',
+      'Regarding PO 4500000001: Line 1 (Copper Piping): Increase from 35 to 75. Line 3 (Filters): Decrease from 35 to 20.',
     ],
   },
   {
