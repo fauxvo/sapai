@@ -216,9 +216,9 @@ export class Executor {
           if (!slResult.success)
             return {
               intentId: action.intentId,
-              success: true,
+              success: false,
               data: itemData,
-              error: `Item fields updated successfully, but delivery date change failed: ${slResult.error.message}`,
+              error: `Item fields updated, but delivery date change failed: ${slResult.error.message}`,
             };
         }
 

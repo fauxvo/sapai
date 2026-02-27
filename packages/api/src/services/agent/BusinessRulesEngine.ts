@@ -424,6 +424,10 @@ const rules: BusinessRule[] = [
       const poHeader = ctx.poHeader;
       const currentSupplier = poHeader?.supplier;
 
+      // No-op: supplier is not actually changing
+      if (currentSupplier && currentSupplier === String(newSupplier))
+        return null;
+
       return {
         ruleId: 'SUPPLIER_CHANGE',
         ruleName: 'Supplier Change',
@@ -454,7 +458,8 @@ const rules: BusinessRule[] = [
       if (!newCurrency) return null;
 
       const poHeader = ctx.poHeader;
-      if (poHeader && poHeader.currency === newCurrency) return null; // same currency, no change
+      if (!poHeader) return null; // can't compare without resolved PO data
+      if (poHeader.currency === newCurrency) return null; // same currency, no change
 
       return {
         ruleId: 'CURRENCY_CHANGE_BLOCKED',
@@ -666,9 +671,13 @@ const rules: BusinessRule[] = [
     description:
       'Blocks modifications on items that have been flagged for deletion',
     severity: 'block',
-    appliesTo: ['update'],
+    appliesTo: ['update', 'delete'],
     evaluate(ctx) {
-      if (ctx.intent.intentId !== 'UPDATE_PO_ITEM') return null;
+      if (
+        ctx.intent.intentId !== 'UPDATE_PO_ITEM' &&
+        ctx.intent.intentId !== 'DELETE_PO_ITEM'
+      )
+        return null;
       const itemMeta = extractItemMeta(ctx.resolvedEntities);
       if (!itemMeta) return null;
 

@@ -1082,9 +1082,9 @@ export class AgentOrchestrator {
 
     for (let i = startIdx; i < STAGE_ORDER.length; i++) {
       const stageName = STAGE_ORDER[i];
-      // Look up by name for backward compat with old runs that lack 'decomposing'
-      const stageRecord = stages.find((s) => s.stage === stageName) ?? stages[i];
-      if (!stageRecord) continue; // skip if stage doesn't exist in this run
+      // Look up by name for backward compat with old runs that lack 'decomposing'/'guarding'
+      const stageRecord = stages.find((s) => s.stage === stageName);
+      if (!stageRecord) continue; // stage doesn't exist in this run — skip
       const stageStart = Date.now();
 
       // Mark stage running
