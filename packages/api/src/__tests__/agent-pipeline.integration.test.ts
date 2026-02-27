@@ -37,6 +37,7 @@ import { PlanBuilder } from '../services/agent/PlanBuilder.js';
 import { PlanStore } from '../services/agent/PlanStore.js';
 import { Executor } from '../services/agent/Executor.js';
 import { AuditLogger } from '../services/agent/AuditLogger.js';
+import { BusinessRulesEngine } from '../services/agent/BusinessRulesEngine.js';
 import { PipelineRunStore } from '../services/agent/PipelineRunStore.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -107,11 +108,19 @@ describe('Agent Pipeline Integration (parse -> validate -> resolve -> plan -> ex
 
     const pipelineRunStore = new PipelineRunStore(db);
 
+    // MessageDecomposer — stub that always skips decomposition in tests
+    const messageDecomposer = {
+      shouldDecompose: () => false,
+      decompose: vi.fn(),
+    };
+
     orchestrator = new AgentOrchestrator({
       conversationStore,
+      messageDecomposer: messageDecomposer as any,
       intentParser,
       validator,
       entityResolver,
+      businessRulesEngine: new BusinessRulesEngine(),
       planBuilder,
       planStore,
       executor,

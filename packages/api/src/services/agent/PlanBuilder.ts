@@ -70,6 +70,22 @@ export class PlanBuilder {
         }
       }
 
+      // For UPDATE_PO_ITEM with deliveryDate: inject the actual schedule line
+      // number from entity resolution metadata so the Executor targets the
+      // correct schedule line (instead of assuming '0001').
+      if (
+        intent.intentId === 'UPDATE_PO_ITEM' &&
+        body?.deliveryDate !== undefined
+      ) {
+        const itemEntity = resolvedEntities.find(
+          (e) => e.entityType === 'purchaseOrderItem',
+        );
+        const slNum = itemEntity?.metadata?.scheduleLineNumber;
+        if (slNum) {
+          body.scheduleLineNumber = slNum;
+        }
+      }
+
       // Generate human-readable description
       const description = this.buildDescription(
         intent,
@@ -113,9 +129,14 @@ export class PlanBuilder {
     const fields = intent.extractedFields;
     const poNumber = fields.poNumber ? `PO ${fields.poNumber}` : '';
 
-    const resolvedLabels = resolvedEntities
-      .filter((e) => e.confidence === 'exact' || e.confidence === 'high')
-      .map((e) => e.resolvedLabel);
+    // Find the resolved item entity specifically (not the PO entity)
+    const itemEntity = resolvedEntities.find(
+      (e) =>
+        e.entityType === 'purchaseOrderItem' &&
+        (e.confidence === 'exact' || e.confidence === 'high'),
+    );
+    const itemLabel =
+      itemEntity?.resolvedLabel ?? `item ${fields.itemIdentifier ?? '?'}`;
 
     switch (intent.intentId) {
       case 'GET_PURCHASE_ORDER':
@@ -125,17 +146,16 @@ export class PlanBuilder {
       case 'GET_PO_ITEMS':
         return `List items on ${poNumber}`;
       case 'GET_PO_ITEM':
-        return `Get ${resolvedLabels[0] ?? `item ${fields.itemIdentifier}`} on ${poNumber}`;
+        return `Get ${itemLabel} on ${poNumber}`;
       case 'UPDATE_PO_ITEM': {
         const changes = [];
         if (fields.quantity !== undefined)
           changes.push(`quantity to ${fields.quantity}`);
-        if (fields.netPrice !== undefined)
-          changes.push(`price to ${fields.netPrice}`);
         if (fields.plant !== undefined)
           changes.push(`plant to ${fields.plant}`);
+        if (fields.deliveryDate !== undefined)
+          changes.push(`delivery date to ${fields.deliveryDate}`);
         const changeStr = changes.length > 0 ? changes.join(', ') : 'fields';
-        const itemLabel = resolvedLabels[0] ?? `item ${fields.itemIdentifier}`;
         return `Update ${changeStr} on ${itemLabel} of ${poNumber}`;
       }
       case 'UPDATE_PO_HEADER': {
@@ -150,10 +170,8 @@ export class PlanBuilder {
         return `Add item to ${poNumber}`;
       case 'DELETE_PURCHASE_ORDER':
         return `Delete ${poNumber}`;
-      case 'DELETE_PO_ITEM': {
-        const itemLabel2 = resolvedLabels[0] ?? `item ${fields.itemIdentifier}`;
-        return `Delete ${itemLabel2} from ${poNumber}`;
-      }
+      case 'DELETE_PO_ITEM':
+        return `Delete ${itemLabel} from ${poNumber}`;
       default:
         return fallback;
     }

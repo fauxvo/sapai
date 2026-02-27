@@ -41,7 +41,20 @@ export class PurchaseOrderService extends PurchaseOrderBaseService {
           purchaseOrderApi.schema.PURCHASING_DOCUMENT_DELETION_CODE,
           purchaseOrderApi.schema.RELEASE_IS_NOT_COMPLETED,
           purchaseOrderApi.schema.PURCHASING_COMPLETENESS_STATUS,
-          purchaseOrderApi.schema.TO_PURCHASE_ORDER_ITEM,
+          purchaseOrderApi.schema.TO_PURCHASE_ORDER_ITEM.select(
+            this.svc.purchaseOrderItemApi.schema.PURCHASE_ORDER_ITEM,
+            this.svc.purchaseOrderItemApi.schema.PURCHASE_ORDER_ITEM_TEXT,
+            this.svc.purchaseOrderItemApi.schema.MATERIAL,
+            this.svc.purchaseOrderItemApi.schema.ORDER_QUANTITY,
+            this.svc.purchaseOrderItemApi.schema.PURCHASE_ORDER_QUANTITY_UNIT,
+            this.svc.purchaseOrderItemApi.schema.NET_PRICE_AMOUNT,
+            this.svc.purchaseOrderItemApi.schema.DOCUMENT_CURRENCY,
+            this.svc.purchaseOrderItemApi.schema.PLANT,
+            this.svc.purchaseOrderItemApi.schema.PURCHASING_DOCUMENT_DELETION_CODE,
+            this.svc.purchaseOrderItemApi.schema.IS_COMPLETELY_DELIVERED,
+            this.svc.purchaseOrderItemApi.schema.IS_FINALLY_INVOICED,
+            this.svc.purchaseOrderItemApi.schema.TO_SCHEDULE_LINE,
+          ),
         )
         .execute(this.destination);
     });

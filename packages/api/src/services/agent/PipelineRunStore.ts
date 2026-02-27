@@ -17,9 +17,11 @@ import type {
 const log = createLogger('PipelineRunStore');
 
 const STAGE_ORDER: PipelineStageName[] = [
+  'decomposing',
   'parsing',
   'validating',
   'resolving',
+  'guarding',
   'planning',
   'executing',
 ];
@@ -339,9 +341,11 @@ export class PipelineRunStore {
     const activeStatuses: string[] = [
       'running',
       'awaiting_approval',
+      'paused_at_decomposing',
       'paused_at_parsing',
       'paused_at_validating',
       'paused_at_resolving',
+      'paused_at_guarding',
       'paused_at_planning',
       'paused_at_executing',
     ];

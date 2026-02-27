@@ -5,6 +5,10 @@ import type {
   ProgressItem,
   ParseFieldConfidence,
 } from '../types';
+import type {
+  CorroborationResult,
+  CorroborationSignal,
+} from '@sapai/shared';
 
 function ConfidenceMeter({ pct }: { pct: number }) {
   const barColor =
@@ -91,9 +95,11 @@ interface PipelineProgressProps {
 }
 
 const STAGES: { key: PipelineStage; label: string }[] = [
+  { key: 'decomposing', label: 'Decomposing message' },
   { key: 'parsing', label: 'Parsing intent' },
   { key: 'validating', label: 'Validating' },
   { key: 'resolving', label: 'Resolving entities' },
+  { key: 'guarding', label: 'Checking rules' },
   { key: 'planning', label: 'Building plan' },
   { key: 'executing', label: 'Executing' },
 ];
@@ -876,49 +882,290 @@ function POValidationCard({ item }: { item: ProgressItem }) {
   );
 }
 
+// --- Corroboration sub-components ---
+
+const SIGNAL_RESULT_STYLES: Record<
+  string,
+  { icon: string; color: string; bg: string }
+> = {
+  match: {
+    icon: '\u2713',
+    color: 'text-emerald-700',
+    bg: 'bg-emerald-50 ring-emerald-200/60',
+  },
+  mismatch: {
+    icon: '\u2717',
+    color: 'text-red-700',
+    bg: 'bg-red-50 ring-red-200/60',
+  },
+  partial: {
+    icon: '\u2248',
+    color: 'text-amber-700',
+    bg: 'bg-amber-50 ring-amber-200/60',
+  },
+  unavailable: {
+    icon: '\u2014',
+    color: 'text-gray-400',
+    bg: 'bg-gray-50 ring-gray-200/60',
+  },
+};
+
+function CorroborationSignalRow({ signal }: { signal: CorroborationSignal }) {
+  const style =
+    SIGNAL_RESULT_STYLES[signal.result] ?? SIGNAL_RESULT_STYLES.unavailable;
+
+  return (
+    <div
+      className={`flex items-start gap-2 rounded-md px-2 py-1.5 ring-1 ring-inset ${style.bg}`}
+    >
+      <span className={`mt-px text-xs font-bold ${style.color}`}>
+        {style.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wide ${style.color}`}
+          >
+            {signal.label}
+          </span>
+          {signal.result !== 'unavailable' && (
+            <span className="text-[9px] text-gray-400">
+              weight {Math.round(signal.weight * 100)}%
+            </span>
+          )}
+        </div>
+        {signal.result !== 'unavailable' ? (
+          <div className="mt-0.5 flex items-center gap-1.5 text-[10px]">
+            <span className="font-mono text-gray-600">
+              &ldquo;{signal.userClaim}&rdquo;
+            </span>
+            <span className="text-gray-300">&harr;</span>
+            <span className="font-mono text-gray-600">
+              {signal.sapValue}
+            </span>
+          </div>
+        ) : (
+          <p className="mt-0.5 text-[10px] text-gray-400">
+            {signal.explanation}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConfidenceEvolution({
+  corroboration,
+}: {
+  corroboration: CorroborationResult;
+}) {
+  const initialPct = Math.round(corroboration.initialConfidence * 100);
+  const finalPct = Math.round(corroboration.finalConfidence * 100);
+  const delta = finalPct - initialPct;
+  const improved = delta > 0;
+
+  const finalColor =
+    finalPct >= 90
+      ? 'text-emerald-700'
+      : finalPct >= 70
+        ? 'text-blue-700'
+        : finalPct >= 50
+          ? 'text-amber-700'
+          : 'text-red-700';
+  const finalBarColor =
+    finalPct >= 90
+      ? 'bg-emerald-500'
+      : finalPct >= 70
+        ? 'bg-blue-500'
+        : finalPct >= 50
+          ? 'bg-amber-500'
+          : 'bg-red-500';
+  const finalTrackColor =
+    finalPct >= 90
+      ? 'bg-emerald-100'
+      : finalPct >= 70
+        ? 'bg-blue-100'
+        : finalPct >= 50
+          ? 'bg-amber-100'
+          : 'bg-red-100';
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-gray-400">{initialPct}%</span>
+      <svg
+        className="h-3 w-3 flex-shrink-0 text-gray-300"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
+        />
+      </svg>
+      <div className="flex items-center gap-1.5">
+        <div
+          className={`h-1.5 w-12 overflow-hidden rounded-full ${finalTrackColor}`}
+        >
+          <div
+            className={`h-full rounded-full transition-all ${finalBarColor}`}
+            style={{ width: `${finalPct}%` }}
+          />
+        </div>
+        <span className={`text-xs font-bold tabular-nums ${finalColor}`}>
+          {finalPct}%
+        </span>
+      </div>
+      {delta !== 0 && (
+        <span
+          className={`text-[10px] font-semibold ${improved ? 'text-emerald-600' : 'text-red-600'}`}
+        >
+          {improved ? '+' : ''}
+          {delta}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CorroborationPanel({
+  corroboration,
+}: {
+  corroboration: CorroborationResult;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const availableSignals = corroboration.signals.filter(
+    (s) => s.result !== 'unavailable',
+  );
+  const unavailableSignals = corroboration.signals.filter(
+    (s) => s.result === 'unavailable',
+  );
+
+  return (
+    <div className="mt-2 rounded-md border border-indigo-200/60 bg-indigo-50/30">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-2.5 py-1.5"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            className="h-3 w-3 text-indigo-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
+            />
+          </svg>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600">
+            Corroboration
+          </span>
+          <span className="text-[10px] text-indigo-400">
+            {corroboration.matchCount}/{corroboration.signalCount} signals
+            matched
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ConfidenceEvolution corroboration={corroboration} />
+          <svg
+            className={`h-3 w-3 text-indigo-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m19.5 8.25-7.5 7.5-7.5-7.5"
+            />
+          </svg>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-indigo-200/40 px-2.5 py-2 space-y-1.5">
+          {availableSignals.map((s) => (
+            <CorroborationSignalRow key={s.id} signal={s} />
+          ))}
+          {unavailableSignals.length > 0 && (
+            <div className="pt-1">
+              <p className="mb-1 text-[9px] font-medium uppercase text-gray-400">
+                Insufficient data
+              </p>
+              {unavailableSignals.map((s) => (
+                <CorroborationSignalRow key={s.id} signal={s} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Item Resolution Card (3-tier: Hero → Confidence → Supporting Data) ---
+
 function ItemResolutionCard({ item }: { item: ProgressItem }) {
   const isResolved = item.status === 'done';
   const isFailed = item.status === 'failed';
   const meta = item.metadata as Record<string, unknown> | undefined;
+  const corroboration = item.corroboration;
+
+  // Use corroborated confidence if available, otherwise fall back to match confidence
+  const hasCorroboration = !!(corroboration && corroboration.signalCount > 0);
+  const finalPct = hasCorroboration
+    ? Math.round(corroboration.finalConfidence * 100)
+    : null;
 
   const borderColor = isResolved
-    ? 'border-blue-200'
+    ? hasCorroboration && finalPct! >= 80
+      ? 'border-emerald-200'
+      : 'border-blue-200'
     : isFailed
       ? 'border-red-200'
       : 'border-slate-200';
   const bgColor = isResolved
-    ? 'bg-blue-50/40'
+    ? hasCorroboration && finalPct! >= 80
+      ? 'bg-emerald-50/30'
+      : 'bg-blue-50/40'
     : isFailed
       ? 'bg-red-50/40'
       : 'bg-slate-50/40';
-  const headerBg = isResolved
-    ? 'border-blue-200/60'
-    : isFailed
-      ? 'border-red-200/60'
-      : 'border-slate-200/60';
 
   return (
-    <div className={`mt-1.5 rounded border ${borderColor} ${bgColor}`}>
-      <div
-        className={`flex items-center justify-between border-b ${headerBg} px-2.5 py-1`}
-      >
-        <span
-          className={`text-[10px] font-semibold uppercase tracking-wider ${
-            isResolved
-              ? 'text-blue-600'
-              : isFailed
-                ? 'text-red-600'
-                : 'text-slate-500'
-          }`}
-        >
-          Item Resolution
-        </span>
-        {item.matchType && (
-          <MatchBadge matchType={item.matchType} confidence={item.confidence} />
-        )}
-      </div>
-      <div className="px-2.5 py-2">
-        {/* Search → Result row */}
+    <div className={`mt-1.5 rounded-lg border ${borderColor} ${bgColor}`}>
+      {/* ---- Tier 1: Hero — Resolution result ---- */}
+      <div className="px-3 pt-2.5 pb-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wider ${
+              isResolved
+                ? 'text-blue-600'
+                : isFailed
+                  ? 'text-red-600'
+                  : 'text-slate-500'
+            }`}
+          >
+            Item Resolution
+          </span>
+          <div className="flex items-center gap-1.5">
+            {item.matchType && (
+              <MatchBadge
+                matchType={item.matchType}
+                confidence={item.confidence}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Search → Result */}
         <div className="flex items-center gap-2 text-xs">
           <span className="font-mono text-amber-700">
             &ldquo;{item.parseConfidence?.rawValue ?? item.originalValue}&rdquo;
@@ -947,72 +1194,107 @@ function ItemResolutionCard({ item }: { item: ProgressItem }) {
             <span className="text-slate-500">Resolving...</span>
           )}
         </div>
+
         {item.parseConfidence && (
           <div className="mt-1">
             <ParseConfidenceBadge fc={item.parseConfidence} />
           </div>
         )}
+      </div>
 
-        {/* Item details grid if resolved */}
-        {isResolved &&
-          meta &&
-          !!(meta.quantity || meta.netPrice || meta.plant) && (
-            <div className="mt-1.5 flex items-center gap-3 text-[10px] text-blue-600/80">
+      {/* ---- Tier 2: Confidence Story — Corroboration ---- */}
+      {isResolved && hasCorroboration && (
+        <div className="px-3 pb-2">
+          <CorroborationPanel corroboration={corroboration!} />
+        </div>
+      )}
+
+      {/* ---- Tier 3: Supporting Data — SAP metadata ---- */}
+      {isResolved &&
+        meta &&
+        !!(meta.quantity || meta.netPrice || meta.plant || meta.material || meta.description || meta.deliveryDate) && (
+          <div
+            className={`border-t px-3 py-2 ${
+              hasCorroboration && finalPct! >= 80
+                ? 'border-emerald-200/40'
+                : 'border-blue-200/40'
+            }`}
+          >
+            <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              SAP Item Data
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px]">
+              {!!meta.description && (
+                <span>
+                  <span className="text-gray-400">Description</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
+                    {String(meta.description)}
+                  </span>
+                </span>
+              )}
               {meta.quantity !== undefined && meta.quantity !== 0 && (
                 <span>
-                  <span className="text-blue-400">Qty</span>{' '}
-                  <span className="font-mono font-medium">
+                  <span className="text-gray-400">Qty</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
                     {String(meta.quantity)} {String(meta.unit ?? '')}
                   </span>
                 </span>
               )}
               {meta.netPrice !== undefined && meta.netPrice !== 0 && (
                 <span>
-                  <span className="text-blue-400">Price</span>{' '}
-                  <span className="font-mono font-medium">
+                  <span className="text-gray-400">Price</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
                     {String(meta.netPrice)} {String(meta.currency ?? '')}
                   </span>
                 </span>
               )}
               {!!meta.plant && (
                 <span>
-                  <span className="text-blue-400">Plant</span>{' '}
-                  <span className="font-mono font-medium">
+                  <span className="text-gray-400">Plant</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
                     {String(meta.plant)}
                   </span>
                 </span>
               )}
               {!!meta.material && (
                 <span>
-                  <span className="text-blue-400">Material</span>{' '}
-                  <span className="font-mono font-medium">
+                  <span className="text-gray-400">Material</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
                     {String(meta.material)}
                   </span>
                 </span>
               )}
-            </div>
-          )}
-
-        {/* Candidates for ambiguous matches */}
-        {item.candidates && item.candidates.length > 0 && (
-          <div className="mt-2 space-y-1">
-            <span className="text-[10px] font-medium uppercase text-amber-600">
-              Multiple matches — disambiguation needed
-            </span>
-            {item.candidates.map((c) => (
-              <div
-                key={c.resolvedValue}
-                className="flex items-center gap-2 rounded border border-amber-200/60 bg-amber-50/40 px-2 py-1 text-xs"
-              >
-                <span className="font-mono font-medium text-amber-800">
-                  {c.resolvedValue}
+              {!!meta.deliveryDate && (
+                <span>
+                  <span className="text-gray-400">Delivery</span>{' '}
+                  <span className="font-mono font-medium text-gray-700">
+                    {String(meta.deliveryDate)}
+                  </span>
                 </span>
-                <span className="text-amber-600">{c.resolvedLabel}</span>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         )}
-      </div>
+
+      {/* Candidates for ambiguous matches */}
+      {item.candidates && item.candidates.length > 0 && (
+        <div className="border-t border-amber-200/40 px-3 py-2 space-y-1">
+          <span className="text-[10px] font-medium uppercase text-amber-600">
+            Multiple matches — disambiguation needed
+          </span>
+          {item.candidates.map((c) => (
+            <div
+              key={c.resolvedValue}
+              className="flex items-center gap-2 rounded border border-amber-200/60 bg-amber-50/40 px-2 py-1 text-xs"
+            >
+              <span className="font-mono font-medium text-amber-800">
+                {c.resolvedValue}
+              </span>
+              <span className="text-amber-600">{c.resolvedLabel}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1198,6 +1480,360 @@ function ApiTraceLog({ items }: { items: ProgressItem[] }) {
   );
 }
 
+// --- Decomposer stage components ---
+
+const CHANGE_TYPE_LABELS: Record<string, string> = {
+  absolute: 'absolute',
+  relative_increase: '+increase',
+  relative_decrease: '-decrease',
+  percentage: '%',
+  multiply: 'multiply',
+};
+
+function DecomposedSpecCard({ item }: { item: ProgressItem }) {
+  const meta = item.metadata as
+    | {
+        targetEntity?: string;
+        fieldChanges?: Array<{
+          field: string;
+          originalValue?: string;
+          newValue: string;
+          changeType: string;
+          rawExpression: string;
+          unit?: string;
+          confidence: number;
+        }>;
+        materialHint?: string;
+      }
+    | undefined;
+
+  if (!meta?.fieldChanges) return null;
+
+  return (
+    <div className="mt-1.5 overflow-hidden rounded-md border border-cyan-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-cyan-200/60 bg-gradient-to-r from-cyan-50 to-cyan-50/40 px-2.5 py-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700">
+          Change Specification
+        </span>
+        <div className="flex items-center gap-2">
+          {meta.materialHint && (
+            <span className="rounded bg-cyan-100/80 px-1.5 py-0.5 text-[9px] font-medium text-cyan-600">
+              {meta.materialHint}
+            </span>
+          )}
+          <span className="font-mono text-[10px] font-semibold text-cyan-800">
+            {meta.targetEntity}
+          </span>
+        </div>
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-cyan-100/60 bg-cyan-50/30">
+            <th className="py-1 pl-2.5 pr-2 text-left text-[9px] font-medium uppercase text-cyan-500">
+              Field
+            </th>
+            <th className="px-2 py-1 text-left text-[9px] font-medium uppercase text-cyan-500">
+              Change
+            </th>
+            <th className="px-2 py-1 text-left text-[9px] font-medium uppercase text-cyan-500">
+              Type
+            </th>
+            <th className="py-1 pl-2 pr-2.5 text-right text-[9px] font-medium uppercase text-cyan-500">
+              Conf
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-cyan-100/50">
+          {meta.fieldChanges.map((fc) => (
+            <tr key={`${fc.field}-${fc.newValue}`}>
+              <td className="py-1.5 pl-2.5 pr-2 text-[11px] font-medium text-cyan-800">
+                {FIELD_LABELS[fc.field] ?? fc.field}
+              </td>
+              <td className="px-2 py-1.5">
+                {fc.originalValue && (
+                  <span className="mr-1.5 text-[10px] text-gray-400 line-through">
+                    {fc.originalValue}
+                  </span>
+                )}
+                {fc.originalValue && (
+                  <span className="mr-1 text-[10px] text-gray-400">&rarr;</span>
+                )}
+                <span className="font-mono text-[11px] font-semibold text-cyan-900">
+                  {fc.newValue}
+                  {fc.unit ? ` ${fc.unit}` : ''}
+                </span>
+              </td>
+              <td className="px-2 py-1.5">
+                <span className="rounded bg-cyan-100/80 px-1 py-0.5 text-[8px] font-medium text-cyan-600">
+                  {CHANGE_TYPE_LABELS[fc.changeType] ?? fc.changeType}
+                </span>
+              </td>
+              <td className="py-1.5 pl-2 pr-2.5 text-right">
+                <span
+                  className={`text-[10px] font-semibold ${
+                    fc.confidence >= 0.9
+                      ? 'text-emerald-600'
+                      : fc.confidence >= 0.7
+                        ? 'text-blue-600'
+                        : 'text-amber-600'
+                  }`}
+                >
+                  {Math.round(fc.confidence * 100)}%
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function QuantityAnalysisCard({ item }: { item: ProgressItem }) {
+  const meta = item.metadata as
+    | {
+        quantities?: Array<{
+          role: string;
+          value: number;
+          context: string;
+        }>;
+        mathCheck?: string;
+      }
+    | undefined;
+
+  if (!meta?.quantities || meta.quantities.length === 0) return null;
+
+  const ROLE_COLORS: Record<string, string> = {
+    original: 'bg-slate-100 text-slate-700',
+    delivered: 'bg-blue-100 text-blue-700',
+    target: 'bg-emerald-100 text-emerald-700',
+    remaining: 'bg-amber-100 text-amber-700',
+    adjustment: 'bg-purple-100 text-purple-700',
+  };
+
+  return (
+    <div className="mt-1.5 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-slate-50/40 px-2.5 py-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+          Quantity Analysis
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2 px-2.5 py-2">
+        {meta.quantities.map((q) => (
+          <div
+            key={`${q.role}-${q.value}`}
+            className="flex items-center gap-1.5 rounded-md border border-slate-200/60 bg-slate-50/50 px-2 py-1"
+            title={q.context}
+          >
+            <span
+              className={`rounded px-1.5 py-0.5 text-[8px] font-semibold uppercase ${ROLE_COLORS[q.role] ?? 'bg-gray-100 text-gray-600'}`}
+            >
+              {q.role}
+            </span>
+            <span className="font-mono text-[11px] font-semibold text-slate-800">
+              {q.value}
+            </span>
+          </div>
+        ))}
+      </div>
+      {meta.mathCheck && (
+        <div className="border-t border-slate-100 bg-slate-50/50 px-2.5 py-1.5">
+          <span className="text-[10px] text-slate-500">{meta.mathCheck}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DecomposerWarning({ item }: { item: ProgressItem }) {
+  return (
+    <div className="mt-1.5 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-2.5 py-1.5">
+      <span className="mt-0.5 text-amber-500">&#9888;</span>
+      <span className="text-[11px] text-amber-800">{item.detail}</span>
+    </div>
+  );
+}
+
+// --- Guard violation card (business rules engine results) ---
+
+function GuardViolationCard({ item }: { item: ProgressItem }) {
+  const meta = item.metadata ?? {};
+  const severity = (meta.severity as string) ?? 'info';
+  const ruleId = (meta.ruleId as string) ?? '';
+  const suggestedFix = meta.suggestedFix as string | undefined;
+  const field = meta.field as string | undefined;
+  const currentValue = meta.currentValue;
+  const sapValue = meta.sapValue;
+
+  const borderColor =
+    severity === 'block'
+      ? 'border-red-300'
+      : severity === 'warn'
+        ? 'border-amber-300'
+        : 'border-blue-200';
+  const bgColor =
+    severity === 'block'
+      ? 'bg-red-50/60'
+      : severity === 'warn'
+        ? 'bg-amber-50/50'
+        : 'bg-blue-50/50';
+  const iconColor =
+    severity === 'block'
+      ? 'text-red-500'
+      : severity === 'warn'
+        ? 'text-amber-500'
+        : 'text-blue-400';
+  const icon =
+    severity === 'block' ? '\u26D4' : severity === 'warn' ? '\u26A0' : '\u2139';
+  const labelColor =
+    severity === 'block'
+      ? 'text-red-700'
+      : severity === 'warn'
+        ? 'text-amber-700'
+        : 'text-blue-700';
+  const badgeColors =
+    severity === 'block'
+      ? 'bg-red-100 text-red-700 ring-red-200'
+      : severity === 'warn'
+        ? 'bg-amber-100 text-amber-700 ring-amber-200'
+        : 'bg-blue-100 text-blue-700 ring-blue-200';
+
+  return (
+    <div
+      className={`mt-1.5 rounded-md border ${borderColor} ${bgColor} px-2.5 py-2`}
+    >
+      <div className="flex items-start gap-2">
+        <span className={`mt-0.5 ${iconColor}`}>{icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ${badgeColors}`}
+            >
+              {severity.toUpperCase()}
+            </span>
+            <span className={`text-[11px] font-medium ${labelColor}`}>
+              {ruleId}
+            </span>
+            {field && (
+              <span className="text-[10px] text-gray-400">
+                field: {field}
+              </span>
+            )}
+          </div>
+          <p className={`mt-0.5 text-[11px] ${labelColor}`}>{item.detail}</p>
+          {(currentValue !== undefined || sapValue !== undefined) && (
+            <div className="mt-1 flex gap-3 text-[10px] text-gray-500">
+              {currentValue !== undefined && (
+                <span>
+                  Requested: <strong>{String(currentValue)}</strong>
+                </span>
+              )}
+              {sapValue !== undefined && (
+                <span>
+                  SAP current: <strong>{String(sapValue)}</strong>
+                </span>
+              )}
+            </div>
+          )}
+          {suggestedFix && (
+            <p className="mt-1 text-[10px] italic text-gray-500">
+              {suggestedFix}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuardChecksTable({ items }: { items: ProgressItem[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const passedCount = items.filter((p) => p.metadata?.passed).length;
+  const failedCount = items.length - passedCount;
+
+  return (
+    <div className="mt-1.5 rounded-md border border-gray-200 bg-gray-50/50">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px]"
+      >
+        <span className="font-medium text-gray-600">
+          {items.length} rules evaluated
+          {failedCount > 0 ? (
+            <span className="ml-1.5 text-red-600">
+              ({failedCount} failed, {passedCount} passed)
+            </span>
+          ) : (
+            <span className="ml-1.5 text-emerald-600">
+              (all passed)
+            </span>
+          )}
+        </span>
+        <span className="text-gray-400">{expanded ? '\u25B2' : '\u25BC'}</span>
+      </button>
+      {expanded && (
+        <div className="border-t border-gray-200 px-2.5 py-1.5">
+          <table className="w-full text-[10px]">
+            <thead>
+              <tr className="text-left text-gray-400">
+                <th className="w-5 pb-1"></th>
+                <th className="pb-1 font-medium">Rule</th>
+                <th className="pb-1 font-medium">Description</th>
+                <th className="pb-1 font-medium">Intent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((p) => {
+                const meta = p.metadata ?? {};
+                const passed = meta.passed as boolean;
+                const severity = meta.severity as string | undefined;
+                return (
+                  <tr
+                    key={p.item}
+                    className={
+                      passed
+                        ? 'text-gray-500'
+                        : severity === 'block'
+                          ? 'text-red-700'
+                          : 'text-amber-700'
+                    }
+                  >
+                    <td className="py-0.5 text-center">
+                      {passed ? (
+                        <span className="text-emerald-500">&#10003;</span>
+                      ) : severity === 'block' ? (
+                        <span className="text-red-500">&#10005;</span>
+                      ) : (
+                        <span className="text-amber-500">&#9888;</span>
+                      )}
+                    </td>
+                    <td className="py-0.5 font-mono">
+                      {(meta.ruleId as string) ?? ''}
+                    </td>
+                    <td className="py-0.5">{p.detail}</td>
+                    <td className="py-0.5 font-mono text-gray-400">
+                      {(meta.intentId as string) ?? ''}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuardSummaryCard({ item }: { item: ProgressItem }) {
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50/50 px-2.5 py-1.5">
+      <span className="text-[11px] leading-none text-emerald-500">&#10003;</span>
+      <span className="text-[11px] text-emerald-700">{item.detail}</span>
+    </div>
+  );
+}
+
 // --- Main component ---
 
 export function PipelineProgress({
@@ -1212,12 +1848,15 @@ export function PipelineProgress({
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
         Pipeline Progress
       </p>
-      <div className="space-y-1">
-        {STAGES.map(({ key, label }) => {
+      <div className="space-y-0">
+        {STAGES.map(({ key, label }, stageIdx) => {
           const isCompleted = completedStages.includes(key);
           const isCurrent = currentStage === key;
           const hasError = error && isCurrent;
           const detail = stageDetails.find((d) => d.stage === key);
+          // Show separator between stages that have content
+          const showSeparator =
+            stageIdx > 0 && (isCompleted || isCurrent || hasError);
           const detailText = isCompleted
             ? detail?.completedDetail
             : isCurrent && !hasError
@@ -1239,6 +1878,20 @@ export function PipelineProgress({
               p.entityType === 'purchaseOrder' ||
               p.entityType === 'purchaseOrderItem',
           );
+          const decomposedItems = items.filter(
+            (p) =>
+              p.entityType === 'decomposedSpec' ||
+              p.entityType === 'quantityAnalysis' ||
+              p.entityType === 'decomposerWarning',
+          );
+          const guardCheckItems = items.filter(
+            (p) => p.entityType === 'guardCheck',
+          );
+          const guardItems = items.filter(
+            (p) =>
+              p.entityType === 'guardViolation' ||
+              p.entityType === 'guardSummary',
+          );
           const simpleItems = items.filter(
             (p) =>
               !p.entityType ||
@@ -1248,11 +1901,20 @@ export function PipelineProgress({
                 'apiTrace',
                 'purchaseOrder',
                 'purchaseOrderItem',
+                'decomposedSpec',
+                'quantityAnalysis',
+                'decomposerWarning',
+                'guardCheck',
+                'guardViolation',
+                'guardSummary',
               ].includes(p.entityType),
           );
 
           return (
-            <div key={key}>
+            <div key={key} className="py-1">
+              {showSeparator && (
+                <hr className="mb-1.5 ml-7 border-t border-gray-100" />
+              )}
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-5 text-center">
                   {hasError ? (
@@ -1340,6 +2002,21 @@ export function PipelineProgress({
                 </ul>
               )}
 
+              {/* Decomposed specifications (pre-analysis of complex messages) */}
+              {decomposedItems.length > 0 && (
+                <div className="ml-7">
+                  {decomposedItems.map((p) =>
+                    p.entityType === 'decomposedSpec' ? (
+                      <DecomposedSpecCard key={p.item} item={p} />
+                    ) : p.entityType === 'quantityAnalysis' ? (
+                      <QuantityAnalysisCard key={p.item} item={p} />
+                    ) : p.entityType === 'decomposerWarning' ? (
+                      <DecomposerWarning key={p.item} item={p} />
+                    ) : null,
+                  )}
+                </div>
+              )}
+
               {/* Parsed fields table (what the AI extracted) */}
               {parsedFieldItems.length > 0 && (
                 <div className="ml-7">
@@ -1372,6 +2049,26 @@ export function PipelineProgress({
                     ) : (
                       <ItemResolutionCard key={p.item} item={p} />
                     ),
+                  )}
+                </div>
+              )}
+
+              {/* Business rules check breakdown */}
+              {guardCheckItems.length > 0 && (
+                <div className="ml-7">
+                  <GuardChecksTable items={guardCheckItems} />
+                </div>
+              )}
+
+              {/* Business rules / guard rail results */}
+              {guardItems.length > 0 && (
+                <div className="ml-7">
+                  {guardItems.map((p) =>
+                    p.entityType === 'guardViolation' ? (
+                      <GuardViolationCard key={p.item} item={p} />
+                    ) : p.entityType === 'guardSummary' ? (
+                      <GuardSummaryCard key={p.item} item={p} />
+                    ) : null,
                   )}
                 </div>
               )}
