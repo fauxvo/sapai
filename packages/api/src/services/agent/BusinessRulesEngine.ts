@@ -192,7 +192,7 @@ const rules: BusinessRule[] = [
           severity: 'warn',
           intentId: ctx.intent.intentId,
           field: 'quantity',
-          message: `New quantity (${newQty}) is ${Math.round(ratio * 100)}% of current quantity (${currentQty}). This is a ${Math.round(ratio)}x increase.`,
+          message: `New quantity (${newQty}) is ${Math.round(ratio)}x the current quantity (${currentQty}).`,
           currentValue: newQty,
           sapValue: currentQty,
           suggestedFix: `Verify the intended quantity. A ${Math.round(ratio)}x increase may indicate a misunderstanding of the original quantity or units.`,
@@ -718,16 +718,23 @@ const rules: BusinessRule[] = [
       for (const entity of ctx.resolvedEntities) {
         if (entity.entityType === 'purchaseOrder') continue; // PO itself is OK
         if (entity.confidence === 'exact') continue;
-        if (entity.confidence === 'low') {
+        if (entity.confidence === 'low' || entity.confidence === 'ambiguous') {
+          const label =
+            entity.confidence === 'ambiguous'
+              ? 'ambiguous (multiple matches)'
+              : 'low';
           violations.push({
             ruleId: 'LOW_CONFIDENCE_ENTITY',
             ruleName: 'Low Confidence Entity',
             severity: 'warn',
             intentId: ctx.intent.intentId,
-            message: `Entity "${entity.originalValue}" was resolved with low confidence to "${entity.resolvedValue}". Operating on the wrong item could cause data corruption.`,
+            message: `Entity "${entity.originalValue}" was resolved with ${label} confidence to "${entity.resolvedValue}". Operating on the wrong item could cause data corruption.`,
             currentValue: entity.originalValue,
             sapValue: entity.resolvedValue,
-            suggestedFix: `Verify the item identity before proceeding. Use a more specific identifier (e.g., exact item number).`,
+            suggestedFix:
+              entity.confidence === 'ambiguous'
+                ? `Multiple items matched "${entity.originalValue}". Use the exact item number to avoid acting on the wrong item.`
+                : `Verify the item identity before proceeding. Use a more specific identifier (e.g., exact item number).`,
           });
         }
       }

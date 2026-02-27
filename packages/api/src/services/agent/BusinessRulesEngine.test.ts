@@ -232,7 +232,7 @@ describe('BusinessRulesEngine', () => {
       (v) => v.ruleId === 'QUANTITY_SPIKE',
     );
     expect(warn).toBeDefined();
-    expect(warn!.message).toContain('600%');
+    expect(warn!.message).toContain('6x');
   });
 
   it('does not warn on reasonable quantity increase', () => {
